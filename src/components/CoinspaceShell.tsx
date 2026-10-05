@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { TransactionChat, type ChatMode } from "@/components/TransactionChat";
 
@@ -24,6 +24,12 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
   const [chat, setChat] = useState<ChatMode | null>(null);
+
+  useEffect(() => {
+    const openChat = (event: Event) => setChat((event as CustomEvent<ChatMode>).detail);
+    window.addEventListener("coinspace:chat", openChat);
+    return () => window.removeEventListener("coinspace:chat", openChat);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -69,5 +75,5 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
 }
 
 export function useTransactionActions() {
-  return null;
+  return (mode: ChatMode) => window.dispatchEvent(new CustomEvent("coinspace:chat", { detail: mode }));
 }
