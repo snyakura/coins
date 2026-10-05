@@ -65,6 +65,15 @@
   --color-chat-surface: var(--chat-surface);
   --color-user-message: var(--user-message);
   --color-overlay: var(--overlay);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-warning-soft: var(--warning-soft);
+  --color-market-dark: var(--market-dark);
+  --color-market-dark-foreground: var(--market-dark-foreground);
+  --color-market-bitcoin: var(--market-bitcoin);
+  --color-market-bitcoin-foreground: var(--market-bitcoin-foreground);
+  --color-chart-blue: var(--chart-blue);
   --shadow-panel: var(--shadow-panel);
   --shadow-message: var(--shadow-message);
   --radius-chat: 0.75rem;
@@ -112,6 +121,15 @@
   --overlay: oklch(0.12 0 0 / 48%);
   --chart-positive: oklch(0.65 0.18 155);
   --chart-negative: oklch(0.65 0.23 28);
+  --positive: oklch(0.58 0.16 155);
+  --positive-soft: oklch(0.95 0.055 150);
+  --negative: oklch(0.62 0.22 28);
+  --warning-soft: oklch(0.97 0.06 90);
+  --market-dark: oklch(0.18 0.02 250);
+  --market-dark-foreground: oklch(0.97 0 0);
+  --market-bitcoin: oklch(0.78 0.17 70);
+  --market-bitcoin-foreground: oklch(0.13 0.01 80);
+  --chart-blue: oklch(0.58 0.16 245);
   --shadow-panel: 0 24px 60px oklch(0.12 0 0 / 18%);
   --shadow-message: 0 2px 8px oklch(0.12 0 0 / 7%);
 }

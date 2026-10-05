@@ -13,7 +13,7 @@ export const Route = createFileRoute("/live-market")({
   ]}), component: LiveMarketPage,
 });
 
-const watchlist = [["₿","BTC/USDT","68,432","+1.80%"],["◆","XAU/USD","2,341","+0.60%"],["🇺🇸","EUR/USD","1.0868","+0.12%"],["🇬🇧","GBP/USD","1.2641","-0.08%"],["🇺🇸","USD/JPY","155.20","+0.21%"],["♦","ETH/USDT","3,245","+2.14%"],["≋","SOL/USDT","172.36","+3.28%"],["X","XRP/USDT","0.5871","-0.46%"],["●","AAPL","189.32","+0.33%"],["T","TSLA","251.14","-1.20%"]];
+const watchlist: Array<[string, string, string, string]> = [["₿","BTC/USDT","68,432","+1.80%"],["◆","XAU/USD","2,341","+0.60%"],["🇺🇸","EUR/USD","1.0868","+0.12%"],["🇬🇧","GBP/USD","1.2641","-0.08%"],["🇺🇸","USD/JPY","155.20","+0.21%"],["♦","ETH/USDT","3,245","+2.14%"],["≋","SOL/USDT","172.36","+3.28%"],["X","XRP/USDT","0.5871","-0.46%"],["●","AAPL","189.32","+0.33%"],["T","TSLA","251.14","-1.20%"]];
 
 function LiveMarketPage() {
   const [period,setPeriod]=useState("1H");
