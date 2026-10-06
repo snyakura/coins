@@ -1,0 +1,17 @@
+if deposited is clicked 
+ask client what they want to deposit
+USDT, WELTRADE, DERIV, OTHER
+if usdt ask POLYGON,OPTOS,TRC20
+if weltrade they should put user id
+if deriv ask their deriv nickname
+if other its crypto 
+on withdrawal 
+if they want to withdraw usdt they should choose binance id, okx id, if usdt trc20 put our address and qrcode 
+if usdt eptos put our details qr
+if polygon put details and qr
+if weltrade withdrawal show the weltrade deposits steps they should search for forex mafia 
+same steps with deriv 
+on other ask crypto and or put other options 
+after every transaction they should upload proof of payment 
+
+

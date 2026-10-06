@@ -13,8 +13,7 @@ const navigation = [
 
 export function Logo() {
   return (
-    <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="Coinspace home">
-      <span className="grid size-8 place-items-center rounded-full border-[7px] border-primary border-r-transparent" />
+    <Link to="/" className="flex shrink-0 items-center" aria-label="Coinspace home">
       <span className="text-xl font-bold">Coinspace</span>
     </Link>
   );
@@ -48,7 +47,6 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="dark" size="sm" onClick={() => setChat("deposit")}>Deposit</Button>
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuOpen((value) => !value)} aria-label="Toggle navigation">
               {menuOpen ? <X size={21} /> : <Menu size={21} />}
             </Button>
