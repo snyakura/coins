@@ -14,11 +14,10 @@ const navigation = [
 export function Logo() {
   return (
     <Link to="/" className="flex shrink-0 items-center" aria-label="Coinspace home">
-      <span className="text-xl font-bold">Coinspace</span>
+      <img src="/logo.svg" alt="Coinspace" className="h-40 w-auto" />
     </Link>
   );
 }
-
 export function CoinspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
