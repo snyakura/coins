@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { SiteFooter } from "@/components/SiteFooter";
 import { TransactionChat, type ChatMode } from "@/components/TransactionChat";
 
 const navigation = [
@@ -123,6 +124,7 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
         )}
       </header>
       {children}
+      <SiteFooter logo={<Logo />} />
       <Button variant="chat" className="fixed bottom-4 right-4 z-20 shadow-panel sm:bottom-5 sm:right-5" onClick={() => setChat("support")}>
         <span className="grid size-5 place-items-center rounded-full border border-current text-xs">C</span>
         <span className="sm:hidden">Chat</span>
