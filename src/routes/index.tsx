@@ -55,8 +55,8 @@ function HomePage() {
 
             {/* Buttons: stacked and full width on phones with room around them, side by side from tablets up */}
             <div className="mt-8 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
-              <Button variant="dark" className="w-full sm:w-auto sm:min-w-40" onClick={() => openChat("deposit")}>Deposit <ArrowRight size={17} /></Button>
-              <Button variant="outline" className="w-full hover:border-primary hover:bg-primary sm:w-auto sm:min-w-40" onClick={() => openChat("withdraw")}>Withdraw <ArrowRight size={17} /></Button>
+              <Button variant="primary" className="w-full sm:w-auto sm:min-w-40" onClick={() => openChat("deposit")}>Deposit <ArrowRight size={17} /></Button>
+              <Button variant="dark" className="w-full hover:border-primary hover:bg-primary sm:w-auto sm:min-w-40" onClick={() => openChat("withdraw")}>Withdraw <ArrowRight size={17} /></Button>
             </div>
 
             {/* Benefits: 2 x 2 on phones, three in a row with dividers from tablets up */}
