@@ -1,14 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Mail, MapPin, Phone } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
 
 // ---- Edit your details here ----------------------------------------------------------
 const PHONE = { display: "+263 78 429 3089", href: "tel:+263784293089" };
 const EMAIL = "theforexmafia2024@gmail.com";
 const ADDRESS = "Pioneer House, 6th Floor, Office 601";
-
-const CHANNEL_URL = "https://whatsapp.com/channel/0029VbCnv2E1iUxUEErWne37";
 
 // TikTok and Instagram: replace these with your full profile links (e.g. https://www.instagram.com/yourname).
 const SOCIALS = [
@@ -52,100 +49,70 @@ function ContactLine({ icon, children }: { icon: ReactNode; children: ReactNode 
   );
 }
 
-/** Yellow panel above the footer inviting people to the WhatsApp channel. Delete <FooterCta /> below if you don't want it. */
-function FooterCta() {
-  return (
-    <section aria-labelledby="footer-cta" className="page-container pb-14 pt-16 sm:pb-16 sm:pt-20">
-      <div className="relative overflow-hidden rounded-3xl bg-primary px-6 py-10 text-primary-foreground sm:px-12 sm:py-14 lg:px-16">
-        {/* The logo's open ring, cropped and faint */}
-        <svg viewBox="0 0 50 50" aria-hidden="true" className="pointer-events-none absolute -bottom-14 -right-14 size-56 text-foreground/10 sm:-bottom-32 sm:-right-24 sm:size-[26rem]">
-          <circle cx="25" cy="25" r="19" fill="none" stroke="currentColor" strokeWidth="12" strokeDasharray="92 28" transform="rotate(-35 25 25)" />
-        </svg>
-        <div className="relative flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between xl:gap-12">
-          <div className="max-w-xl">
-            <h2 id="footer-cta" className="text-balance text-3xl font-extrabold leading-[1.05] sm:text-4xl xl:text-5xl">
-              Join our WhatsApp channel.
-            </h2>
-            <p className="mt-4 max-w-md text-balance text-base leading-7 sm:text-lg">Follow Coinspace on WhatsApp to get our updates straight to your phone.</p>
-          </div>
-          <Button asChild variant="dark" className="sm:self-start xl:self-auto">
-            <a href={CHANNEL_URL} target="_blank" rel="noopener noreferrer">
-              <BrandIcon name="whatsapp" /> Join the channel
-            </a>
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /** Site-wide footer. Pass the logo in so this file doesn't depend on the header file. */
 export function SiteFooter({ logo }: { logo: ReactNode }) {
   return (
-    <>
-      <FooterCta />
-      <footer className="bg-foreground text-background">
-        {/* Top: logo and note on the left, page links and contact details on the right.
-            The "Contact us" buttons scroll to this block (id="contact"). */}
-        <div id="contact" className="page-container scroll-mt-20 grid gap-12 pb-12 pt-14 sm:pb-14 sm:pt-16 lg:grid-cols-[minmax(0,1.15fr)_auto_auto] lg:gap-20">
-          <div>
-            {/* The logo artwork is black, so it is turned white to show on the dark background */}
-            <div className="inline-block brightness-0 invert">{logo}</div>
-            <p className="mt-5 max-w-xs text-sm leading-6 text-background/60">
-              Deposit and withdraw for forex and crypto trading through simple chat steps. Markets move fast and trading carries risk, so
-              only trade with money you can afford to lose.
-            </p>
-          </div>
+    <footer className="mt-16 bg-foreground text-background sm:mt-20">
+      {/* Top: logo and note on the left, page links and contact details on the right.
+          The "Contact us" buttons scroll to this block (id="contact"). */}
+      <div id="contact" className="page-container scroll-mt-20 grid gap-12 pb-12 pt-14 sm:pb-14 sm:pt-16 lg:grid-cols-[minmax(0,1.15fr)_auto_auto] lg:gap-20">
+        <div>
+          {/* The logo artwork is black, so it is turned white to show on the dark background */}
+          <div className="inline-block brightness-0 invert">{logo}</div>
+          <p className="mt-5 max-w-xs text-sm leading-6 text-background/60">
+            Deposit and withdraw for forex and crypto trading through simple chat steps. Markets move fast and trading carries risk, so
+            only trade with money you can afford to lose.
+          </p>
+        </div>
 
-          <nav aria-label="Footer navigation">
-            <ul className="grid gap-3">
-              {links.map((item) => (
-                <li key={item.to}>
-                  <Link
-                    to={item.to}
-                    className={`text-xs font-semibold uppercase tracking-[0.12em] text-background/80 transition-colors hover:text-primary ${focusRing}`}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <ul className="grid content-start gap-3 lg:max-w-[16rem]">
-            <ContactLine icon={<Phone size={16} />}>
-              <a href={PHONE.href} className={`transition-colors hover:text-primary ${focusRing}`}>{PHONE.display}</a>
-            </ContactLine>
-            <ContactLine icon={<Mail size={16} />}>
-              <a href={`mailto:${EMAIL}`} className={`transition-colors hover:text-primary ${focusRing}`}>{EMAIL}</a>
-            </ContactLine>
-            <ContactLine icon={<MapPin size={16} />}>{ADDRESS}</ContactLine>
+        <nav aria-label="Footer navigation">
+          <ul className="grid gap-3">
+            {links.map((item) => (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  className={`text-xs font-semibold uppercase tracking-[0.12em] text-background/80 transition-colors hover:text-primary ${focusRing}`}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
           </ul>
-        </div>
+        </nav>
 
-        {/* Divider, then centered social icons and copyright. Extra bottom space on phones keeps the floating chat button clear. */}
-        <div className="page-container">
-          <div className="border-t border-background/20" />
-          <div className="flex flex-col items-center pb-24 pt-10 sm:pb-12">
-            <ul className="flex items-center justify-center gap-3">
-              {SOCIALS.map(({ label, href, icon }) => (
-                <li key={label}>
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={label}
-                    className={`grid size-10 place-items-center rounded-full border border-background/60 text-background transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground ${focusRing}`}
-                  >
-                    <BrandIcon name={icon} />
-                  </a>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-6 text-center text-xs text-background/60">&copy; {new Date().getFullYear()} Coinspace. All rights reserved.</p>
-          </div>
+        <ul className="grid content-start gap-3 lg:max-w-[16rem]">
+          <ContactLine icon={<Phone size={16} />}>
+            <a href={PHONE.href} className={`transition-colors hover:text-primary ${focusRing}`}>{PHONE.display}</a>
+          </ContactLine>
+          <ContactLine icon={<Mail size={16} />}>
+            <a href={`mailto:${EMAIL}`} className={`transition-colors hover:text-primary ${focusRing}`}>{EMAIL}</a>
+          </ContactLine>
+          <ContactLine icon={<MapPin size={16} />}>{ADDRESS}</ContactLine>
+        </ul>
+      </div>
+
+      {/* Divider, then centered social icons and copyright. Extra bottom space on phones keeps the floating chat button clear. */}
+      <div className="page-container">
+        <div className="border-t border-background/20" />
+        <div className="flex flex-col items-center pb-24 pt-10 sm:pb-12">
+          <ul className="flex items-center justify-center gap-3">
+            {SOCIALS.map(({ label, href, icon }) => (
+              <li key={label}>
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className={`grid size-10 place-items-center rounded-full border border-background/60 text-background transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground ${focusRing}`}
+                >
+                  <BrandIcon name={icon} />
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-6 text-center text-xs text-background/60">&copy; {new Date().getFullYear()} Coinspace. All rights reserved.</p>
         </div>
-      </footer>
-    </>
+      </div>
+    </footer>
   );
 }

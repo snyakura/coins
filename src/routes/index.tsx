@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, BarChart3, Bolt, CreditCard, FileText, Send, ShieldCheck, UserRound } from "lucide-react";
+import { BrokerMarquee } from "@/components/BrokerMarquee";
 import { CoinspaceShell, useTransactionActions } from "@/components/CoinspaceShell";
 import { Button } from "@/components/ui/button";
 
@@ -33,7 +34,7 @@ function HomePage() {
   ];
   return <CoinspaceShell>
     <main>
-                       <section className="flex min-h-[calc(100svh-4rem)] items-center overflow-x-clip">
+      <section className="flex min-h-[calc(100svh-4rem)] items-center overflow-x-clip">
         <div className="page-container grid items-center gap-8 py-12 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
           <div>
             <span className="text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
@@ -53,12 +54,27 @@ function HomePage() {
             <img
               src="/phone-hero-3d.svg"
               alt="Coinspace app preview"
-              className="pointer-events-none h-auto w-[95%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)]"
+              className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)]"
               loading="eager"
               decoding="async"
             />
           </div>
         </div>
+      </section>
+
+      {/* Trusted brokers strip, right after the hero */}
+      <BrokerMarquee />
+
+      <section className="bg-card py-10">
+        <div className="page-container grid gap-8 lg:grid-cols-[260px_1fr]">
+          <div><p className="text-xs font-semibold uppercase text-muted-foreground">How it works</p><h2 className="mt-2 text-3xl font-extrabold leading-none">Get started<br />in four simple steps.</h2><Button asChild variant="primary" className="mt-5"><Link to={GET_STARTED_PAGE}>Get started <ArrowRight size={17} /></Link></Button></div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">{steps.map(({ icon: Icon, title, text }, index) => <div key={title} className="relative"><div className="flex items-center gap-4"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-bold">{index + 1}</span><Icon /></div><h3 className="mt-3 text-sm font-bold">{title}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{text}</p></div>)}</div>
+        </div>
+        <div className="page-container mt-9 grid gap-4 md:grid-cols-3">{[
+          [ShieldCheck, "No funds held", "Coinspace never holds your funds. You remain in control at all times."],
+          [Bolt, "Confirmed in minutes", "Fast processing with real-time updates on your deposit and withdrawal."],
+          [UserRound, "Support in chat", "Get help anytime from our team directly in the Coinspace chatbot."],
+        ].map(([Icon, title, text]) => { const C = Icon as typeof ShieldCheck; return <div key={title as string} className="panel flex gap-4 p-5"><span className="grid size-12 shrink-0 place-items-center rounded-full bg-accent"><C /></span><div><h3 className="font-bold">{title as string}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{text as string}</p></div></div>; })}</div>
       </section>
     </main>
   </CoinspaceShell>;
