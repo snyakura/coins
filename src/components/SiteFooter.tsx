@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Mail, MapPin, Phone } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
 // ---- Edit your details here ----------------------------------------------------------
@@ -31,28 +31,23 @@ const iconPaths = {
   instagram: "M224.3 141a115 115 0 1 0 -.6 230 115 115 0 1 0 .6-230zm-.6 40.4a74.6 74.6 0 1 1 .6 149.2 74.6 74.6 0 1 1 -.6-149.2zm93.4-45.1a26.8 26.8 0 1 1 53.6 0 26.8 26.8 0 1 1 -53.6 0zm129.7 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM399 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z",
 };
 
-// Splits the address at its commas so a line break never lands in the middle of "6th Floor"
-const addressParts = ADDRESS.split(/,\s*/);
-
 // Light outline so keyboard focus is visible on the dark footer
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-background";
 
 function BrandIcon({ name }: { name: keyof typeof iconPaths }) {
   return (
-    <svg viewBox="0 0 448 512" className="size-5" fill="currentColor" aria-hidden="true">
+    <svg viewBox="0 0 448 512" className="size-[18px]" fill="currentColor" aria-hidden="true">
       <path d={iconPaths[name]} />
     </svg>
   );
 }
 
-function ContactItem({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
+/** One line in the contact column: a small yellow icon and the text next to it. */
+function ContactLine({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <li className="flex items-center gap-4 py-5 sm:py-6 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-      <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-sm text-background/60">{label}</p>
-        <div className="mt-0.5 text-[15px] font-bold leading-snug text-background [overflow-wrap:anywhere]">{children}</div>
-      </div>
+    <li className="flex items-start gap-3">
+      <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
+      <span className="min-w-0 text-sm leading-6 text-background/80 [overflow-wrap:anywhere]">{children}</span>
     </li>
   );
 }
@@ -90,62 +85,65 @@ export function SiteFooter({ logo }: { logo: ReactNode }) {
     <>
       <FooterCta />
       <footer className="bg-foreground text-background">
-        {/* Top: logo, description, social icons, page links */}
-        <div className="page-container flex flex-col items-center py-12 text-center sm:py-14">
-          {/* The logo artwork is black, so it is turned white to show on the dark background */}
-          <div className="brightness-0 invert">{logo}</div>
-          <p className="mt-6 max-w-xl text-balance text-base leading-7 text-background/70">
-            Deposit and withdraw for forex and crypto trading through simple chat steps. Markets move fast and trading carries risk, so
-            only trade with money you can afford to lose.
-          </p>
-          <ul className="mt-8 flex items-center justify-center gap-3">
-            {SOCIALS.map(({ label, href, icon }) => (
-              <li key={label}>
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  className={`grid size-11 place-items-center rounded-lg bg-background text-foreground transition-colors hover:bg-primary hover:text-primary-foreground ${focusRing}`}
-                >
-                  <BrandIcon name={icon} />
-                </a>
-              </li>
-            ))}
-          </ul>
-          <nav className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm font-medium" aria-label="Footer navigation">
-            {links.map((item) => (
-              <Link key={item.to} to={item.to} className={`text-background/80 underline decoration-transparent decoration-2 underline-offset-8 transition-colors hover:text-background hover:decoration-primary ${focusRing}`}>
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        {/* Middle: contact details. The "Contact us" buttons scroll to this id. */}
-        <div id="contact" className="scroll-mt-20 border-t border-background/15">
-          <div className="page-container">
-            <ul className="grid divide-y divide-background/15 lg:grid-cols-[1fr_1.35fr_1.35fr] lg:divide-x lg:divide-y-0">
-              <ContactItem icon={<Phone size={20} />} label="Call us">
-                <a href={PHONE.href} className={`hover:underline ${focusRing}`}>{PHONE.display}</a>
-              </ContactItem>
-              <ContactItem icon={<Mail size={20} />} label="Email us">
-                <a href={`mailto:${EMAIL}`} className={`hover:underline ${focusRing}`}>{EMAIL}</a>
-              </ContactItem>
-              <ContactItem icon={<MapPin size={20} />} label="Visit us">
-                {addressParts.map((part, i) => (
-                  <Fragment key={part}>
-                    <span className="whitespace-nowrap">{part}{i < addressParts.length - 1 ? "," : ""}</span>{" "}
-                  </Fragment>
-                ))}
-              </ContactItem>
-            </ul>
+        {/* Top: logo and note on the left, page links and contact details on the right.
+            The "Contact us" buttons scroll to this block (id="contact"). */}
+        <div id="contact" className="page-container scroll-mt-20 grid gap-12 pb-12 pt-14 sm:pb-14 sm:pt-16 lg:grid-cols-[minmax(0,1.15fr)_auto_auto] lg:gap-20">
+          <div>
+            {/* The logo artwork is black, so it is turned white to show on the dark background */}
+            <div className="inline-block brightness-0 invert">{logo}</div>
+            <p className="mt-5 max-w-xs text-sm leading-6 text-background/60">
+              Deposit and withdraw for forex and crypto trading through simple chat steps. Markets move fast and trading carries risk, so
+              only trade with money you can afford to lose.
+            </p>
           </div>
+
+          <nav aria-label="Footer navigation">
+            <ul className="grid gap-3">
+              {links.map((item) => (
+                <li key={item.to}>
+                  <Link
+                    to={item.to}
+                    className={`text-xs font-semibold uppercase tracking-[0.12em] text-background/80 transition-colors hover:text-primary ${focusRing}`}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <ul className="grid content-start gap-3 lg:max-w-[16rem]">
+            <ContactLine icon={<Phone size={16} />}>
+              <a href={PHONE.href} className={`transition-colors hover:text-primary ${focusRing}`}>{PHONE.display}</a>
+            </ContactLine>
+            <ContactLine icon={<Mail size={16} />}>
+              <a href={`mailto:${EMAIL}`} className={`transition-colors hover:text-primary ${focusRing}`}>{EMAIL}</a>
+            </ContactLine>
+            <ContactLine icon={<MapPin size={16} />}>{ADDRESS}</ContactLine>
+          </ul>
         </div>
 
-        {/* Bottom bar. Nothing on the right, so the floating chat button never covers anything */}
-        <div className="border-t border-background/15">
-          <div className="page-container py-5 text-sm text-background/70">&copy; {new Date().getFullYear()} Coinspace. All rights reserved.</div>
+        {/* Divider, then centered social icons and copyright. Extra bottom space on phones keeps the floating chat button clear. */}
+        <div className="page-container">
+          <div className="border-t border-background/20" />
+          <div className="flex flex-col items-center pb-24 pt-10 sm:pb-12">
+            <ul className="flex items-center justify-center gap-3">
+              {SOCIALS.map(({ label, href, icon }) => (
+                <li key={label}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className={`grid size-10 place-items-center rounded-full border border-background/60 text-background transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground ${focusRing}`}
+                  >
+                    <BrandIcon name={icon} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-center text-xs text-background/60">&copy; {new Date().getFullYear()} Coinspace. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </>
