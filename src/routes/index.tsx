@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, BarChart3, Bolt, CreditCard, FileText, Send, ShieldCheck, UserRound } from "lucide-react";
 import { BrokerMarquee } from "@/components/BrokerMarquee";
 import { CoinspaceShell, useTransactionActions } from "@/components/CoinspaceShell";
+import { FaqCta } from "@/components/FaqCta";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
@@ -76,6 +77,9 @@ function HomePage() {
           [UserRound, "Support in chat", "Get help anytime from our team directly in the Coinspace chatbot."],
         ].map(([Icon, title, text]) => { const C = Icon as typeof ShieldCheck; return <div key={title as string} className="panel flex gap-4 p-5"><span className="grid size-12 shrink-0 place-items-center rounded-full bg-accent"><C /></span><div><h3 className="font-bold">{title as string}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{text as string}</p></div></div>; })}</div>
       </section>
+
+      {/* FAQ and call-to-action card, just above the footer */}
+      <FaqCta />
     </main>
   </CoinspaceShell>;
 }
