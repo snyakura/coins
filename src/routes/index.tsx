@@ -54,10 +54,22 @@ function HomePage() {
             </p>
 
             {/* Buttons: stacked and full width on phones with room around them, side by side from tablets up */}
-            <div className="mt-8 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
-              <Button variant="primary" className="w-full sm:w-auto sm:min-w-40" onClick={() => openChat("deposit")}>Deposit <ArrowRight size={17} /></Button>
-              <Button variant="dark" className="w-full hover:border-primary hover:bg-primary sm:w-auto sm:min-w-40" onClick={() => openChat("withdraw")}>Withdraw <ArrowRight size={17} /></Button>
-            </div>
+           <div className="mt-8 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
+  <Button
+    variant="primary"
+    className="group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-foreground hover:text-white hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
+    onClick={() => openChat("deposit")}
+  >
+    Deposit <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transform-none" />
+  </Button>
+  <Button
+    variant="dark"
+    className="group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
+    onClick={() => openChat("withdraw")}
+  >
+    Withdraw <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transform-none" />
+  </Button>
+</div>
 
             {/* Benefits: 2 x 2 on phones, three in a row with dividers from tablets up */}
             <ul className="mt-8 grid grid-cols-2 sm:mt-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-4">
@@ -75,14 +87,14 @@ function HomePage() {
 
           {/* Phone image: only shown when it fits on the right, never below the text */}
           <div className="relative -mt-12 hidden items-center justify-end xl:flex">
-            <img
-              src="/phone-hero-3d.svg"
-              alt="Coinspace app preview"
-              className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] xl:translate-x-20"
-              loading="eager"
-              decoding="async"
-            />
-          </div>
+  <img
+    src="/phone-hero-3d.svg"
+    alt="Coinspace app preview"
+    className="h-auto w-[112%] max-w-none cursor-pointer select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-4 hover:-rotate-2 hover:scale-[1.04] hover:drop-shadow-[0_50px_55px_rgba(0,0,0,0.28)] active:scale-[1.01] motion-reduce:transform-none motion-reduce:transition-none xl:translate-x-20"
+    loading="eager"
+    decoding="async"
+  />
+</div>
         </div>
       </section>
 
