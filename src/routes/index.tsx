@@ -36,32 +36,34 @@ function HomePage() {
   return <CoinspaceShell>
     <main>
       <section className="flex min-h-[calc(100svh-4rem)] items-center overflow-x-clip">
-        <div className="page-container grid items-center gap-8 py-12 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
-          <div>
-            <span className="text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
-            <h1 className="mt-5 max-w-[800px] text-5xl font-extrabold leading-[.98] [-webkit-text-stroke:1.5px_currentColor] sm:whitespace-nowrap sm:text-6xl lg:text-7xl">Buy and sell<br />crypto. Fast.</h1>
-            <p className="mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">Deposit, trade and withdraw. Coinspace never holds your funds.</p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button variant="dark" className="min-w-40" onClick={() => openChat("deposit")}>Deposit <ArrowRight size={17} /></Button>
-              <Button variant="outline" className="min-w-40 hover:border-primary hover:bg-primary" onClick={() => openChat("withdraw")}>Withdraw <ArrowRight size={17} /></Button>
-            </div>
-            <div className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
-              {benefits.map(({ icon: Icon, title, text }) => <div key={title} className="flex items-center gap-3 border-r border-border last:border-0"><Icon className="shrink-0" /><div><p className="text-xs font-bold">{title}</p><p className="text-[11px] text-muted-foreground">{text}</p></div></div>)}
-            </div>
-          </div>
+  {/* Changed items-center to items-start so things anchor from the top */}
+  <div className="page-container grid items-start gap-8 py-12 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
+   {/* Added pt-10 to drop the whole text block lower down */}
+<div className="pt-28">
+  <span className="text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
+  <h1 className="mt-5 max-w-[800px] text-5xl font-extrabold leading-[.98] [-webkit-text-stroke:1.5px_currentColor] sm:whitespace-nowrap sm:text-6xl lg:text-7xl">Buy and sell<br />crypto. Fast.</h1>
+  <p className="mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">Deposit, trade and withdraw. Coinspace never holds your funds.</p>
+  <div className="mt-6 flex flex-wrap gap-3">
+    <Button variant="dark" className="min-w-40" onClick={() => openChat("deposit")}>Deposit <ArrowRight size={17} /></Button>
+    <Button variant="outline" className="min-w-40 hover:border-primary hover:bg-primary" onClick={() => openChat("withdraw")}>Withdraw <ArrowRight size={17} /></Button>
+  </div>
+  <div className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
+    {benefits.map(({ icon: Icon, title, text }) => <div key={title} className="flex items-center gap-3 border-r border-border last:border-0"><Icon className="shrink-0" /><div><p className="text-xs font-bold">{title}</p><p className="text-[11px] text-muted-foreground">{text}</p></div></div>)}
+  </div>
+</div>
 
-          {/* Phone image: only shown when it fits on the right, never below the text */}
-          <div className="relative hidden items-center justify-end xl:flex">
-         <img
-  src="/phone-hero-3d.svg"
-  alt="Coinspace app preview"
-  className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] xl:translate-x-20"
-  loading="eager"
-  decoding="async"
-/>
-          </div>
-        </div>
-      </section>
+    {/* Phone image: Added negative top margin (-mt-4 or -mt-8) to pull it up higher */}
+    <div className="relative hidden items-center justify-end xl:flex -mt-6">
+      <img
+        src="/phone-hero-3d.svg"
+        alt="Coinspace app preview"
+        className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] xl:translate-x-20"
+        loading="eager"
+        decoding="async"
+      />
+    </div>
+  </div>
+</section>
 
       {/* Trusted brokers strip, right after the hero */}
       <BrokerMarquee />
