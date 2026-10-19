@@ -33,7 +33,7 @@ function HomePage() {
   ];
   return <CoinspaceShell>
     <main>
-                 <section className="flex min-h-[calc(100svh-4rem)] items-center overflow-x-clip">
+                       <section className="flex min-h-[calc(100svh-4rem)] items-center overflow-x-clip">
         <div className="page-container grid items-center gap-8 py-12 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
           <div>
             <span className="text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
@@ -53,7 +53,7 @@ function HomePage() {
             <img
               src="/phone-hero-3d.svg"
               alt="Coinspace app preview"
-              className="pointer-events-none h-auto w-full max-w-none select-none object-contain object-right mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] xl:max-h-[calc(100svh-9rem)]"
+              className="pointer-events-none h-auto w-[95%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)]"
               loading="eager"
               decoding="async"
             />

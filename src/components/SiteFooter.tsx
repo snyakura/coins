@@ -34,7 +34,8 @@ const iconPaths = {
 // Splits the address at its commas so a line break never lands in the middle of "6th Floor"
 const addressParts = ADDRESS.split(/,\s*/);
 
-const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground";
+// Light outline so keyboard focus is visible on the dark footer
+const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-background";
 
 function BrandIcon({ name }: { name: keyof typeof iconPaths }) {
   return (
@@ -46,11 +47,11 @@ function BrandIcon({ name }: { name: keyof typeof iconPaths }) {
 
 function ContactItem({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
-    <li className="flex items-start gap-4 px-5 py-5 sm:px-6 sm:py-6 lg:px-6 lg:py-7 xl:px-8">
+    <li className="flex items-center gap-4 py-5 sm:py-6 lg:px-6 lg:first:pl-0 lg:last:pr-0">
       <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">{icon}</span>
-      <div className="min-w-0 pt-0.5">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <div className="mt-0.5 text-[15px] font-bold leading-snug [overflow-wrap:anywhere]">{children}</div>
+      <div className="min-w-0">
+        <p className="text-sm text-background/60">{label}</p>
+        <div className="mt-0.5 text-[15px] font-bold leading-snug text-background [overflow-wrap:anywhere]">{children}</div>
       </div>
     </li>
   );
@@ -88,10 +89,12 @@ export function SiteFooter({ logo }: { logo: ReactNode }) {
   return (
     <>
       <FooterCta />
-      <footer className="border-t border-border bg-card">
-        <div className="page-container flex flex-col items-center py-14 text-center sm:py-16">
-          {logo}
-          <p className="mt-6 max-w-xl text-balance text-base leading-7 text-muted-foreground">
+      <footer className="bg-foreground text-background">
+        {/* Top: logo, description, social icons, page links */}
+        <div className="page-container flex flex-col items-center py-12 text-center sm:py-14">
+          {/* The logo artwork is black, so it is turned white to show on the dark background */}
+          <div className="brightness-0 invert">{logo}</div>
+          <p className="mt-6 max-w-xl text-balance text-base leading-7 text-background/70">
             Deposit and withdraw for forex and crypto trading through simple chat steps. Markets move fast and trading carries risk, so
             only trade with money you can afford to lose.
           </p>
@@ -103,42 +106,45 @@ export function SiteFooter({ logo }: { logo: ReactNode }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className={`grid size-11 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-primary hover:text-primary-foreground ${focusRing}`}
+                  className={`grid size-11 place-items-center rounded-lg bg-background text-foreground transition-colors hover:bg-primary hover:text-primary-foreground ${focusRing}`}
                 >
                   <BrandIcon name={icon} />
                 </a>
               </li>
             ))}
           </ul>
-          <nav className="mt-10 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm font-medium" aria-label="Footer navigation">
+          <nav className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm font-medium" aria-label="Footer navigation">
             {links.map((item) => (
-              <Link key={item.to} to={item.to} className={`underline decoration-transparent decoration-2 underline-offset-8 transition-colors hover:decoration-primary ${focusRing}`}>
+              <Link key={item.to} to={item.to} className={`text-background/80 underline decoration-transparent decoration-2 underline-offset-8 transition-colors hover:text-background hover:decoration-primary ${focusRing}`}>
                 {item.label}
               </Link>
             ))}
           </nav>
         </div>
 
-        <div className="page-container pb-14 sm:pb-16">
-          <ul className="grid divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background lg:grid-cols-[1fr_1.5fr_1.15fr] lg:divide-x lg:divide-y-0 xl:grid-cols-[1fr_1.35fr_1.5fr]">
-            <ContactItem icon={<Phone size={20} />} label="Call us">
-              <a href={PHONE.href} className={`hover:underline ${focusRing}`}>{PHONE.display}</a>
-            </ContactItem>
-            <ContactItem icon={<Mail size={20} />} label="Email us">
-              <a href={`mailto:${EMAIL}`} className={`hover:underline ${focusRing}`}>{EMAIL}</a>
-            </ContactItem>
-            <ContactItem icon={<MapPin size={20} />} label="Visit us">
-              {addressParts.map((part, i) => (
-                <Fragment key={part}>
-                  <span className="whitespace-nowrap">{part}{i < addressParts.length - 1 ? "," : ""}</span>{" "}
-                </Fragment>
-              ))}
-            </ContactItem>
-          </ul>
+        {/* Middle: contact details. The "Contact us" buttons scroll to this id. */}
+        <div id="contact" className="scroll-mt-20 border-t border-background/15">
+          <div className="page-container">
+            <ul className="grid divide-y divide-background/15 lg:grid-cols-[1fr_1.35fr_1.35fr] lg:divide-x lg:divide-y-0">
+              <ContactItem icon={<Phone size={20} />} label="Call us">
+                <a href={PHONE.href} className={`hover:underline ${focusRing}`}>{PHONE.display}</a>
+              </ContactItem>
+              <ContactItem icon={<Mail size={20} />} label="Email us">
+                <a href={`mailto:${EMAIL}`} className={`hover:underline ${focusRing}`}>{EMAIL}</a>
+              </ContactItem>
+              <ContactItem icon={<MapPin size={20} />} label="Visit us">
+                {addressParts.map((part, i) => (
+                  <Fragment key={part}>
+                    <span className="whitespace-nowrap">{part}{i < addressParts.length - 1 ? "," : ""}</span>{" "}
+                  </Fragment>
+                ))}
+              </ContactItem>
+            </ul>
+          </div>
         </div>
 
-        {/* Nothing on the right of this bar, so the floating chat button never covers anything */}
-        <div className="bg-foreground text-background">
+        {/* Bottom bar. Nothing on the right, so the floating chat button never covers anything */}
+        <div className="border-t border-background/15">
           <div className="page-container py-5 text-sm text-background/70">&copy; {new Date().getFullYear()} Coinspace. All rights reserved.</div>
         </div>
       </footer>
