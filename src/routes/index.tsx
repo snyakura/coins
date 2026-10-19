@@ -47,7 +47,7 @@ function HomePage() {
 
             {/* Bigger and bolder on phones. The size scales with the screen so "Buy and sell" always fits on one line. */}
             <h1 className="mt-4 max-w-[800px] text-[clamp(2.6rem,12.5vw,3.5rem)] font-black leading-[1.02] [-webkit-text-stroke:2px_currentColor] sm:mt-5 sm:whitespace-nowrap sm:text-6xl sm:font-extrabold sm:leading-[.98] sm:[-webkit-text-stroke:1.5px_currentColor] lg:text-7xl">
-              Buy and sell<br />crypto. Fast.
+              Buy and sell<br />crypto Fast.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
               Deposit, trade and withdraw. Coinspace never holds your funds.
