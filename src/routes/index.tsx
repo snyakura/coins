@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, BarChart3, Bolt, CreditCard, FileText, Send, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowRight, BarChart3, Bolt, CreditCard, FileText, Headset, Send, ShieldCheck, UserRound } from "lucide-react";
 import { BrokerMarquee } from "@/components/BrokerMarquee";
 import { CoinspaceShell, useTransactionActions } from "@/components/CoinspaceShell";
 import { FaqCta } from "@/components/FaqCta";
@@ -22,10 +22,12 @@ const GET_STARTED_PAGE = "/live-market" as const;
 
 function HomePage() {
   const openChat = useTransactionActions();
+  // Phones show these as a 2 x 2 grid with thin dividers. From tablets up it is three in a row and the fourth is hidden.
   const benefits = [
-    { icon: ShieldCheck, title: "Non-custodial", text: "You stay in control" },
-    { icon: BarChart3, title: "Global markets", text: "Crypto and forex" },
-    { icon: Bolt, title: "Fast and secure", text: "Built for everyone" },
+    { icon: ShieldCheck, title: "Non-custodial", text: "You stay in control", extra: "border-r border-b pr-4 sm:border-b-0 sm:pr-0" },
+    { icon: BarChart3, title: "Global markets", text: "Crypto and forex", extra: "border-b pl-5 sm:border-b-0 sm:border-r sm:pl-0" },
+    { icon: Bolt, title: "Fast and secure", text: "Built for everyone", extra: "border-r pr-4 sm:border-r-0 sm:pr-0" },
+    { icon: Headset, title: "Chat support", text: "Help in the chat", extra: "pl-5 sm:hidden" },
   ];
   const steps = [
     { icon: UserRound, title: "Create your account", text: "Sign up in minutes and verify your details." },
@@ -35,36 +37,54 @@ function HomePage() {
   ];
   return <CoinspaceShell>
     <main>
-      <section className="flex min-h-[calc(100svh-4rem)] items-center overflow-x-clip">
-  {/* Changed items-center to items-start so things anchor from the top */}
-  <div className="page-container grid items-start gap-8 py-12 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
-   {/* Added pt-10 to drop the whole text block lower down */}
-<div className="pt-28">
-  <span className="text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
-  <h1 className="mt-5 max-w-[800px] text-5xl font-extrabold leading-[.98] [-webkit-text-stroke:1.5px_currentColor] sm:whitespace-nowrap sm:text-6xl lg:text-7xl">Buy and sell<br />crypto. Fast.</h1>
-  <p className="mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">Deposit, trade and withdraw. Coinspace never holds your funds.</p>
-  <div className="mt-6 flex flex-wrap gap-3">
-    <Button variant="dark" className="min-w-40" onClick={() => openChat("deposit")}>Deposit <ArrowRight size={17} /></Button>
-    <Button variant="outline" className="min-w-40 hover:border-primary hover:bg-primary" onClick={() => openChat("withdraw")}>Withdraw <ArrowRight size={17} /></Button>
-  </div>
-  <div className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
-    {benefits.map(({ icon: Icon, title, text }) => <div key={title} className="flex items-center gap-3 border-r border-border last:border-0"><Icon className="shrink-0" /><div><p className="text-xs font-bold">{title}</p><p className="text-[11px] text-muted-foreground">{text}</p></div></div>)}
-  </div>
-</div>
+      {/* Hero. It fills the whole first screen (4.5rem / 5rem is the header height), so the brokers strip
+          only appears once you scroll. The content sits together in the middle of that space. */}
+      <section className="flex min-h-[calc(100svh-4.5rem)] items-center overflow-x-clip sm:min-h-[calc(100svh-5rem)]">
+        <div className="page-container grid items-start gap-8 py-10 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
+          {/* Text block. xl:pt-28 lowers it on large screens only. */}
+          <div className="xl:pt-28">
+            <span className="block text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
 
-    {/* Phone image: Added negative top margin (-mt-4 or -mt-8) to pull it up higher */}
-    {/* Changed -mt-6 to -mt-12 to push the phone image higher up */}
-<div className="relative hidden items-center justify-end xl:flex -mt-12">
-  <img
-    src="/phone-hero-3d.svg"
-    alt="Coinspace app preview"
-    className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] xl:translate-x-20"
-    loading="eager"
-    decoding="async"
-  />
-</div>
-  </div>
-</section>
+            {/* Bigger and bolder on phones. The size scales with the screen so "Buy and sell" always fits on one line. */}
+            <h1 className="mt-4 max-w-[800px] text-[clamp(2.6rem,12.5vw,3.5rem)] font-black leading-[1.02] [-webkit-text-stroke:2px_currentColor] sm:mt-5 sm:whitespace-nowrap sm:text-6xl sm:font-extrabold sm:leading-[.98] sm:[-webkit-text-stroke:1.5px_currentColor] lg:text-7xl">
+              Buy and sell<br />crypto. Fast.
+            </h1>
+            <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
+              Deposit, trade and withdraw. Coinspace never holds your funds.
+            </p>
+
+            {/* Buttons: stacked and full width on phones with room around them, side by side from tablets up */}
+            <div className="mt-8 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
+              <Button variant="dark" className="w-full sm:w-auto sm:min-w-40" onClick={() => openChat("deposit")}>Deposit <ArrowRight size={17} /></Button>
+              <Button variant="outline" className="w-full hover:border-primary hover:bg-primary sm:w-auto sm:min-w-40" onClick={() => openChat("withdraw")}>Withdraw <ArrowRight size={17} /></Button>
+            </div>
+
+            {/* Benefits: 2 x 2 on phones, three in a row with dividers from tablets up */}
+            <ul className="mt-8 grid grid-cols-2 sm:mt-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-4">
+              {benefits.map(({ icon: Icon, title, text, extra }) => (
+                <li key={title} className={`flex items-center gap-3 border-border py-4 sm:py-0 ${extra}`}>
+                  <Icon className="size-6 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold leading-tight sm:text-xs">{title}</p>
+                    <p className="mt-0.5 text-xs leading-tight text-muted-foreground sm:text-[11px]">{text}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Phone image: only shown when it fits on the right, never below the text */}
+          <div className="relative -mt-12 hidden items-center justify-end xl:flex">
+            <img
+              src="/phone-hero-3d.svg"
+              alt="Coinspace app preview"
+              className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] xl:translate-x-20"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* Trusted brokers strip, right after the hero */}
       <BrokerMarquee />
