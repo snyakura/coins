@@ -52,13 +52,13 @@ function HomePage() {
 
           {/* Phone image: only shown when it fits on the right, never below the text */}
           <div className="relative hidden items-center justify-end xl:flex">
-            <img
-              src="/phone-hero-3d.svg"
-              alt="Coinspace app preview"
-              className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)]"
-              loading="eager"
-              decoding="async"
-            />
+         <img
+  src="/phone-hero-3d.svg"
+  alt="Coinspace app preview"
+  className="pointer-events-none h-auto w-[112%] max-w-none select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] xl:translate-x-20"
+  loading="eager"
+  decoding="async"
+/>
           </div>
         </div>
       </section>
