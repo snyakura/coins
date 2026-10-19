@@ -12,6 +12,11 @@ const navigation = [
   { label: "Live Market", to: "/live-market" as const },
 ];
 
+/** A page counts as selected on its own address and on anything under it (e.g. /blog/my-post). */
+function isActivePage(pathname: string, to: string) {
+  return to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(`${to}/`);
+}
+
 type LogoData = { html: string; ratio: number };
 let cachedLogo: LogoData | null = null; // measured once, reused when you change pages
 
@@ -78,7 +83,11 @@ export function Logo({ size = headerLogoSize }: { size?: string }) {
   }, []);
 
   return (
-    <Link to="/" className="flex shrink-0 items-center" aria-label="Coinspace home">
+    <Link
+      to="/"
+      className="flex shrink-0 items-center transition-transform duration-300 hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none"
+      aria-label="Coinspace home"
+    >
       {logo && logo !== "failed" ? (
         <span
           className={`block max-w-[60vw] ${size} [&>svg]:block [&>svg]:h-full [&>svg]:w-full`}
@@ -95,8 +104,75 @@ export function Logo({ size = headerLogoSize }: { size?: string }) {
 }
 
 /**
- * Phone menu: a panel that slides in from the right while the page behind it is dimmed and blurred.
- * Closes with the X button, the Escape key, a tap on the blurred area, or by choosing a link.
+ * Desktop navigation: a frosted pill-shaped bar. The yellow highlight slides from page to page
+ * when you navigate, instead of jumping.
+ */
+function DesktopNav({ pathname }: { pathname: string }) {
+  const navRef = useRef<HTMLElement>(null);
+  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
+  const [animate, setAnimate] = useState(false); // stays off for the first paint so the pill doesn't fly in from the left
+
+  useEffect(() => {
+    const measure = () => {
+      const active = navRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+      setPill(active ? { left: active.offsetLeft, width: active.offsetWidth } : null);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (navRef.current) observer.observe(navRef.current);
+    void document.fonts?.ready.then(measure);
+    const frame = requestAnimationFrame(() => setAnimate(true));
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [pathname]);
+
+  return (
+    <nav
+      ref={navRef}
+      className="relative mx-auto hidden items-center gap-1 rounded-full border border-border/60 bg-background/40 p-1.5 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] backdrop-blur-md md:flex"
+      aria-label="Primary navigation"
+    >
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-y-1.5 left-0 rounded-full bg-primary shadow-[0_6px_16px_-4px_rgba(0,0,0,0.25)] ${animate ? "transition-[transform,width,opacity] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none" : ""}`}
+        style={{
+          width: pill?.width ?? 0,
+          transform: `translateX(${pill?.left ?? 0}px)`,
+          opacity: pill ? 1 : 0,
+        }}
+      />
+      {navigation.map((item) => {
+        const active = isActivePage(pathname, item.to);
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            data-active={active}
+            aria-current={active ? "page" : undefined}
+            className={`relative z-10 rounded-full px-5 py-2.5 text-sm transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${active ? "font-bold text-foreground" : "font-medium text-foreground/60 hover:text-foreground"}`}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Slide-and-fade entrance for one item of the phone menu. Each item starts a little later than the one before. */
+function reveal(open: boolean, order: number) {
+  return {
+    className: `transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${open ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0"}`,
+    style: { transitionDelay: open ? `${140 + order * 60}ms` : "0ms" },
+  };
+}
+
+/**
+ * Phone menu: a frosted panel that slides in from the right while the page behind it is dimmed and blurred.
+ * The links then glide in one after another. Closes with the X button, the Escape key,
+ * a tap on the blurred area, or by choosing a link.
  */
 function MobileMenu({
   open,
@@ -150,12 +226,15 @@ function MobileMenu({
     };
   }, [open, onClose, returnFocusRef]);
 
+  const header = reveal(open, 0);
+  const buttons = reveal(open, navigation.length + 1);
+
   return (
     <>
       <div
         aria-hidden="true"
         onClick={onClose}
-        className={`fixed inset-0 z-40 bg-foreground/30 backdrop-blur-sm transition-opacity duration-300 motion-reduce:transition-none md:hidden ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`fixed inset-0 z-40 bg-foreground/30 backdrop-blur-md transition-opacity duration-500 motion-reduce:transition-none md:hidden ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
       <div
         id="mobile-menu"
@@ -164,32 +243,48 @@ function MobileMenu({
         aria-modal="true"
         aria-label="Menu"
         inert={!open}
-        className={`fixed inset-y-0 right-0 z-50 flex w-[88%] max-w-sm flex-col bg-background shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none md:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-[88%] max-w-sm flex-col overflow-hidden rounded-l-3xl border-l border-border/60 bg-background/85 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
       >
-        <div className="flex items-start justify-between border-b border-border px-6 pb-5 pt-6">
-          <div>
-            <p className="text-xl font-bold leading-tight">Menu</p>
+        {/* soft yellow glow in the corner */}
+        <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/30 blur-3xl" aria-hidden="true" />
+
+        <div className="relative flex items-start justify-between px-6 pb-5 pt-7">
+          <div className={header.className} style={header.style}>
+            <p className="text-2xl font-extrabold leading-tight">Menu</p>
             <p className="mt-1 text-sm text-muted-foreground">Explore Coinspace</p>
           </div>
-          <Button ref={closeRef} variant="ghost" size="icon" className="-mr-3 -mt-2" onClick={onClose} aria-label="Close menu">
+          <Button
+            ref={closeRef}
+            variant="ghost"
+            size="icon"
+            className={`-mr-2 -mt-1 rounded-full border border-border/60 bg-background/60 transition-transform duration-300 hover:rotate-90 active:scale-90 motion-reduce:transform-none`}
+            onClick={onClose}
+            aria-label="Close menu"
+          >
             <X size={22} />
           </Button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-6 py-2" aria-label="Mobile navigation">
-          <ul className="divide-y divide-border">
-            {navigation.map((item) => {
-              const active = pathname === item.to;
+        <nav className="relative flex-1 overflow-y-auto px-4 py-2" aria-label="Mobile navigation">
+          <ul className="grid gap-1.5">
+            {navigation.map((item, index) => {
+              const active = isActivePage(pathname, item.to);
+              const motion = reveal(open, index + 1);
               return (
-                <li key={item.to}>
+                <li key={item.to} className={motion.className} style={motion.style}>
                   <Link
                     to={item.to}
                     onClick={onClose}
                     aria-current={active ? "page" : undefined}
-                    className={`flex items-center justify-between rounded py-5 text-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${active ? "font-bold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"}`}
+                    className={`flex items-center justify-between rounded-2xl px-5 py-4 text-lg transition-all duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${active ? "bg-primary font-bold text-foreground shadow-[0_8px_20px_-8px_rgba(0,0,0,0.3)]" : "font-medium text-foreground/70 hover:bg-muted hover:text-foreground"}`}
                   >
                     {item.label}
-                    {active && <span className="size-2.5 rounded-full bg-primary" aria-hidden="true" />}
+                    {active && (
+                      <span className="relative flex size-2.5" aria-hidden="true">
+                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-foreground/40 motion-reduce:animate-none" />
+                        <span className="relative inline-flex size-2.5 rounded-full bg-foreground" />
+                      </span>
+                    )}
                   </Link>
                 </li>
               );
@@ -197,7 +292,7 @@ function MobileMenu({
           </ul>
         </nav>
 
-        <div className="grid gap-3 px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4">
+        <div className={`relative grid gap-3 px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4 ${buttons.className}`} style={buttons.style}>
           <div className="grid grid-cols-2 gap-3">
             <Button variant="outline" className="hover:border-primary hover:bg-primary" onClick={() => onChat("deposit")}>
               Deposit
@@ -227,6 +322,7 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
   const [chat, setChat] = useState<ChatMode | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const chatFromMenu = useCallback((mode: ChatMode) => {
@@ -248,31 +344,40 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("coinspace:chat", openChat);
   }, []);
 
+  // Once the page has scrolled a little, the header gets a soft shadow and a touch more frost.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto grid h-16 max-w-[1240px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 sm:flex sm:px-8">
+      <header
+        className={`sticky top-0 z-30 border-b backdrop-blur-xl backdrop-saturate-150 transition-[background-color,box-shadow,border-color] duration-300 motion-reduce:transition-none ${
+          scrolled
+            ? "border-border/60 bg-background/70 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.15)]"
+            : "border-transparent bg-background/40"
+        }`}
+      >
+        <div className="mx-auto grid h-[4.5rem] max-w-[1240px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 sm:flex sm:h-20 sm:px-8">
           <Logo />
-          <nav className="mx-auto hidden items-center gap-3 md:flex" aria-label="Primary navigation">
-            {navigation.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${pathname === item.to ? "bg-primary" : "hover:bg-muted"}`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <DesktopNav pathname={pathname} />
           <div className="ml-auto flex items-center gap-2">
-            <Button asChild variant="dark" size="sm" className={`hidden px-5 md:inline-flex ${contactButton}`}>
+            <Button
+              asChild
+              variant="dark"
+              size="sm"
+              className={`hidden px-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none md:inline-flex ${contactButton}`}
+            >
               <a href="#contact" onClick={goToContact}>Contact us</a>
             </Button>
             <Button
               ref={menuButtonRef}
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="rounded-full border border-border/60 bg-background/50 backdrop-blur transition-transform duration-200 active:scale-90 motion-reduce:transform-none md:hidden"
               onClick={() => setMenuOpen(true)}
               aria-label="Open menu"
               aria-expanded={menuOpen}
