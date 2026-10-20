@@ -31,7 +31,10 @@ export const Route = createFileRoute("/api/ai")({
               image,
               json: true,
             });
-            return json({ analysis: JSON.parse(raw.replace(/```json|```/g, "").trim()) });
+            const start = raw.indexOf("{");
+            const end = raw.lastIndexOf("}");
+            if (start === -1 || end <= start) throw new Error("AI returned an unreadable answer");
+            return json({ analysis: JSON.parse(raw.slice(start, end + 1)) });
           }
 
           if (!messages.length) return json({ error: "No message" }, 400);
@@ -41,7 +44,15 @@ export const Route = createFileRoute("/api/ai")({
           return json({ reply: await callModel({ system, messages, image }) });
         } catch (e) {
           console.error("ai:", e);
-          return json({ error: "The AI is unavailable right now. Please try again." }, 500);
+          const busy = e instanceof Error && /Gemini error (429|500|503)|OpenAI error 429/.test(e.message);
+          return json(
+            {
+              error: busy
+                ? "The AI is busy right now. Please try again in a moment."
+                : "The AI is unavailable right now. Please try again.",
+            },
+            busy ? 503 : 500,
+          );
         }
       },
     },

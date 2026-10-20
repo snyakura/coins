@@ -1,3 +1,5 @@
+import { callGemini } from "./gemini.server";
+
 export type ChatMsg = { role: "user" | "assistant"; content: string };
 export type ImageInput = { mediaType: string; data: string }; // base64, no prefix
 
@@ -5,9 +7,9 @@ type Args = { system: string; messages: ChatMsg[]; image?: ImageInput; json?: bo
 
 export async function callModel({ system, messages, image, json }: Args): Promise<string> {
   const provider = process.env.AI_PROVIDER ?? "openai";
-  return provider === "anthropic"
-    ? callAnthropic({ system, messages, image })
-    : callOpenAI({ system, messages, image, json });
+  if (provider === "anthropic") return callAnthropic({ system, messages, image });
+  if (provider === "gemini") return callGemini({ system, messages, image, json });
+  return callOpenAI({ system, messages, image, json });
 }
 
 async function callOpenAI({ system, messages, image, json }: Args) {

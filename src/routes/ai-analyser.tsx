@@ -19,13 +19,14 @@ export const Route = createFileRoute("/ai-analyser")({
   component: AiAnalyserPage,
 });
 
-type HistoryItem = { pair: string; timeframe: string; bias: string; confidence: number; at: number };
+
 const QUICK_PROMPTS = ["What moves EUR/USD most?", "Explain support and resistance", "How should I size a forex trade?"];
 const biasStyle = {
   bullish: { text: "text-positive", ring: "border-positive", soft: "bg-positive-soft" },
   bearish: { text: "text-negative", ring: "border-negative", soft: "bg-muted" },
   neutral: { text: "text-muted-foreground", ring: "border-border", soft: "bg-muted" },
 };
+
 
 function AiAnalyserPage() {
   const [tab, setTab] = useState<"analyse" | "chat">("analyse");
@@ -35,7 +36,6 @@ function AiAnalyserPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analysing, setAnalysing] = useState(false);
   const [analyseError, setAnalyseError] = useState("");
-  const [history, setHistory] = useState<HistoryItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // chat
@@ -48,10 +48,8 @@ function AiAnalyserPage() {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("coinspace-analyses");
-      if (raw) setHistory(JSON.parse(raw));
-    } catch {}
+    // wipe anything saved by earlier versions of this page
+    try { localStorage.removeItem("coinspace-analyses"); } catch {}
   }, []);
 
   useEffect(() => {
@@ -79,11 +77,6 @@ function AiAnalyserPage() {
     try {
       const result = await analyseChart({ mediaType: image.mediaType, data: image.data });
       setAnalysis(result);
-      if (result.isChart) {
-        const next = [{ pair: result.pair, timeframe: result.timeframe, bias: result.bias, confidence: result.confidence, at: Date.now() }, ...history].slice(0, 6);
-        setHistory(next);
-        try { localStorage.setItem("coinspace-analyses", JSON.stringify(next)); } catch {}
-      }
     } catch (e) {
       setAnalyseError(e instanceof Error ? e.message : "Analysis failed.");
     } finally {
@@ -300,25 +293,6 @@ function AiAnalyserPage() {
           </div>
           <Button variant="outline" size="sm" disabled>Upcoming feature</Button>
         </section>
-
-        {/* Recent analyses */}
-        {history.length > 0 && (
-          <>
-            <h2 className="mt-7 text-lg font-bold">Recent analyses</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {history.map((h) => {
-                const s = biasStyle[h.bias as keyof typeof biasStyle] ?? biasStyle.neutral;
-                return (
-                  <div key={h.at} className="panel p-3">
-                    <p className="font-bold">{h.pair} {h.timeframe}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(h.at).toLocaleString()}</p>
-                    <span className={`mt-2 inline-block rounded-full px-2 py-1 text-xs capitalize ${s.soft} ${s.text}`}>{h.bias} {Math.round(h.confidence)}%</span>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
       </main>
     </CoinspaceShell>
   );
