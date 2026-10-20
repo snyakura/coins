@@ -12,10 +12,5 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
-  vite: {
-    server: {
-      // Forward /api calls to the local Express server (npm run api)
-      proxy: { "/api": "http://localhost:8787" },
-    },
-  },
+  
 });

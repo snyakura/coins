@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiAnalyserRouteImport } from './routes/ai-analyser'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as LiveMarketRouteImport } from './routes/live-market'
+import { Route as ApiAiRouteImport } from './routes/api.ai'
+import { Route as ApiNewsRouteImport } from './routes/api.news'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +36,32 @@ const LiveMarketRoute = LiveMarketRouteImport.update({
   path: '/live-market',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiRoute = ApiAiRouteImport.update({
+  id: '/api/ai',
+  path: '/api/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNewsRoute = ApiNewsRouteImport.update({
+  id: '/api/news',
+  path: '/api/news',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-analyser': typeof AiAnalyserRoute
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
+  '/api/ai': typeof ApiAiRoute
+  '/api/news': typeof ApiNewsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-analyser': typeof AiAnalyserRoute
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
+  '/api/ai': typeof ApiAiRoute
+  '/api/news': typeof ApiNewsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +69,23 @@ export interface FileRoutesById {
   '/ai-analyser': typeof AiAnalyserRoute
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
+  '/api/ai': typeof ApiAiRoute
+  '/api/news': typeof ApiNewsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/ai-analyser' | '/blog' | '/live-market'
+  fullPaths:
+    '/' | '/ai-analyser' | '/blog' | '/live-market' | '/api/ai' | '/api/news'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/ai-analyser' | '/blog' | '/live-market'
-  id: '__root__' | '/' | '/ai-analyser' | '/blog' | '/live-market'
+  to: '/' | '/ai-analyser' | '/blog' | '/live-market' | '/api/ai' | '/api/news'
+  id:
+    | '__root__'
+    | '/'
+    | '/ai-analyser'
+    | '/blog'
+    | '/live-market'
+    | '/api/ai'
+    | '/api/news'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +93,8 @@ export interface RootRouteChildren {
   AiAnalyserRoute: typeof AiAnalyserRoute
   BlogRoute: typeof BlogRoute
   LiveMarketRoute: typeof LiveMarketRoute
+  ApiAiRoute: typeof ApiAiRoute
+  ApiNewsRoute: typeof ApiNewsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +127,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiveMarketRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ai': {
+      id: '/api/ai'
+      path: '/api/ai'
+      fullPath: '/api/ai'
+      preLoaderRoute: typeof ApiAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/news': {
+      id: '/api/news'
+      path: '/api/news'
+      fullPath: '/api/news'
+      preLoaderRoute: typeof ApiNewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +149,8 @@ const rootRouteChildren: RootRouteChildren = {
   AiAnalyserRoute: AiAnalyserRoute,
   BlogRoute: BlogRoute,
   LiveMarketRoute: LiveMarketRoute,
+  ApiAiRoute: ApiAiRoute,
+  ApiNewsRoute: ApiNewsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
