@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiAnalyserRouteImport } from './routes/ai-analyser'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as LiveMarketRouteImport } from './routes/live-market'
-import { Route as ApiAiRouteImport } from './routes/api.ai'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -35,25 +34,18 @@ const LiveMarketRoute = LiveMarketRouteImport.update({
   path: '/live-market',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAiRoute = ApiAiRouteImport.update({
-  id: '/api/ai',
-  path: '/api/ai',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-analyser': typeof AiAnalyserRoute
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
-  '/api/ai': typeof ApiAiRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-analyser': typeof AiAnalyserRoute
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
-  '/api/ai': typeof ApiAiRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,14 +53,13 @@ export interface FileRoutesById {
   '/ai-analyser': typeof AiAnalyserRoute
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
-  '/api/ai': typeof ApiAiRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/ai-analyser' | '/blog' | '/live-market' | '/api/ai'
+  fullPaths: '/' | '/ai-analyser' | '/blog' | '/live-market'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/ai-analyser' | '/blog' | '/live-market' | '/api/ai'
-  id: '__root__' | '/' | '/ai-analyser' | '/blog' | '/live-market' | '/api/ai'
+  to: '/' | '/ai-analyser' | '/blog' | '/live-market'
+  id: '__root__' | '/' | '/ai-analyser' | '/blog' | '/live-market'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,7 +67,6 @@ export interface RootRouteChildren {
   AiAnalyserRoute: typeof AiAnalyserRoute
   BlogRoute: typeof BlogRoute
   LiveMarketRoute: typeof LiveMarketRoute
-  ApiAiRoute: typeof ApiAiRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -109,13 +99,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiveMarketRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/ai': {
-      id: '/api/ai'
-      path: '/api/ai'
-      fullPath: '/api/ai'
-      preLoaderRoute: typeof ApiAiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -124,7 +107,6 @@ const rootRouteChildren: RootRouteChildren = {
   AiAnalyserRoute: AiAnalyserRoute,
   BlogRoute: BlogRoute,
   LiveMarketRoute: LiveMarketRoute,
-  ApiAiRoute: ApiAiRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
