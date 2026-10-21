@@ -1,5 +1,6 @@
 import { Check, Copy, Image as ImageIcon, Send, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { chatWithAI, prepareImage, readProof, type ProofRead } from "@/lib/ai-client";
 
 export type ChatMode = "deposit" | "withdraw" | "support";
 
@@ -38,8 +39,8 @@ type Msg =
       note?: string;
     }
   | { id: number; role: "user"; kind: "upload"; name: string; time: string }
-  | { id: number; role: "bot"; kind: "read"; amount: number; reference: string; sender: string; confidence: number }
-  | { id: number; role: "bot"; kind: "checks"; items: string[] }
+  | { id: number; role: "bot"; kind: "read"; amount: number | null; reference: string; sender: string; confidence: number }
+  | { id: number; role: "bot"; kind: "checks"; items: { ok: boolean; text: string }[] }
   | { id: number; role: "system"; kind: "pill"; tone: "ok" | "wait"; label: string; sub?: string };
 
 type Ctx = {
@@ -81,6 +82,12 @@ const MAX_DEPOSIT = 2000;
 const LARGE_PAYOUT = 200; // payouts at or above this wait for a human check
 const MERCHANT = { name: "Coinspace (Pvt) Ltd", code: "100234", number: "+263 77 000 1234" };
 const REGISTERED_NUMBER = "+263 77 123 4567";
+
+// Safe default: the chat never says a payment is approved until you connect a real confirmation source.
+const AUTO_APPROVE = false;
+// Turn on only after real client numbers are loaded (REGISTERED_NUMBER above is a placeholder).
+const CHECK_SENDER = false;
+const digits = (s: string) => s.replace(/\D/g, "");
 
 // TODO: replace these placeholders with your real details and QR images (put QR files in /public/qr).
 const OUR_ACCOUNTS: Record<string, { address: string; qr: string }> = {
@@ -159,6 +166,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   const timers = useRef<number[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const aiHistory = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
 
   const later = (fn: () => void, ms: number) => {
     timers.current.push(window.setTimeout(fn, ms));
@@ -215,6 +223,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setDetailInput("");
     setPendingKind("");
     ctx.current = emptyCtx();
+    aiHistory.current = [];
     if (mode === "support") {
       respond([bot("Hi! I'm the Coinspace assistant. How can I help you today?")]);
     } else if (mode) {
@@ -434,20 +443,125 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     respond([bot("Thanks! Please upload a screenshot of your payment confirmation so we can verify it.")]);
   };
 
-  const onFile = (event: ChangeEvent<HTMLInputElement>) => {
+  // Free-text questions go to the AI. Only these messages are sent: wallet addresses, IDs and phone numbers typed into the flow steps never are.
+  const askAI = async (text: string) => {
+    push(me(text));
+    aiHistory.current = [...aiHistory.current, { role: "user" as const, content: text }].slice(-12);
+    setTyping(true);
+    try {
+      const c = ctx.current;
+      const context = [
+        `Chat type: ${c.flow ?? "support"}`,
+        `Current step: ${stage}`,
+        c.asset ? `Asset chosen: ${c.asset}` : "",
+        c.amount ? `Amount: ${money(c.amount)}` : "",
+      ]
+        .filter(Boolean)
+        .join(". ");
+      const reply = await chatWithAI(aiHistory.current, context, "transaction");
+      aiHistory.current = [...aiHistory.current, { role: "assistant" as const, content: reply }];
+      push(bot(reply));
+    } catch {
+      push(bot("Sorry, I couldn't answer that just now. Please try again in a moment."));
+    } finally {
+      setTyping(false);
+    }
+  };
+
+  // Real checks, computed in code from what the AI read.
+  const runChecks = (read: ProofRead) => {
+    const { amount, reference, flow: current } = ctx.current;
+    const items: { ok: boolean; text: string }[] = [];
+
+    const amountOk = read.amount !== null && Math.abs(read.amount - amount) < 0.01;
+    items.push({
+      ok: amountOk,
+      text: amountOk
+        ? `Amount matches request (${money(amount)})`
+        : `Amount doesn't match (receipt: ${read.amount === null ? "not found" : money(read.amount)}, expected ${money(amount)})`,
+    });
+
+    if (read.currency && !/^(usd|us\$|\$)$/i.test(read.currency.trim())) {
+      items.push({ ok: false, text: `Receipt currency is ${read.currency}, expected USD` });
+    }
+
+    if (current === "deposit") {
+      const refOk = !!read.reference && read.reference.toUpperCase().includes(reference.toUpperCase());
+      items.push({ ok: refOk, text: refOk ? `Reference ${reference} found` : `Reference ${reference} not found on the receipt` });
+      if (CHECK_SENDER && read.sender) {
+        const senderOk = digits(read.sender).slice(-9) === digits(REGISTERED_NUMBER).slice(-9);
+        items.push({ ok: senderOk, text: senderOk ? "Sender is the registered number" : "Sender doesn't match the registered number" });
+      }
+    }
+
+    const statusOk = read.status === "success";
+    items.push({ ok: statusOk, text: statusOk ? "Payment shows as successful" : "Payment doesn't show as successful" });
+    items.push({ ok: amount >= MIN_AMOUNT && (current === "withdraw" || amount <= MAX_DEPOSIT), text: "Within limits" });
+    return items;
+  };
+
+  const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || stage !== "proof") return;
     const name = file.name.length > 22 ? `${file.name.slice(0, 19)}…` : file.name;
     push({ id: newId(), role: "user", kind: "upload", name, time: now() });
     setStage("processing");
+    setTyping(true);
 
     const { amount, reference, destination, flow: current } = ctx.current;
+
+    let read: ProofRead;
+    try {
+      const image = await prepareImage(file);
+      read = await readProof({ mediaType: image.mediaType, data: image.data });
+    } catch {
+      setTyping(false);
+      respond([bot("I couldn't read that screenshot just now. Please try uploading it again.")], () => setStage("proof"));
+      return;
+    }
+    setTyping(false);
+
+    if (!read.isReceipt) {
+      respond(
+        [bot("That doesn't look like a payment confirmation. Please upload a clear screenshot of the receipt.")],
+        () => setStage("proof"),
+      );
+      return;
+    }
+
+    const items = runChecks(read);
+    const readCard: Msg = {
+      id: newId(),
+      role: "bot",
+      kind: "read",
+      amount: read.amount,
+      reference: read.reference || "—",
+      sender: read.sender || "—",
+      confidence: Math.round(read.confidence),
+    };
+    const checksCard: Msg = { id: newId(), role: "bot", kind: "checks", items };
+
+    if (!items.every((i) => i.ok)) {
+      respond(
+        [
+          readCard,
+          checksCard,
+          { id: newId(), role: "system", kind: "pill", tone: "wait", label: "Needs review" },
+          bot("Some checks didn't pass. You can upload a clearer screenshot, or wait and our team will review it."),
+        ],
+        () => setStage("proof"),
+        900,
+      );
+      return;
+    }
 
     // Withdrawals: proof is the client's transfer to us, then we ask where to pay out.
     if (current === "withdraw") {
       respond(
         [
+          readCard,
+          checksCard,
           bot("Proof received — thank you."),
           bot(`Where should we send your ${money(amount)} payout? Use your registered EcoCash number ${REGISTERED_NUMBER}?`),
         ],
@@ -460,32 +574,18 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       return;
     }
 
+    const outcome: Msg[] = AUTO_APPROVE
+      ? [
+          { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
+          bot(`${money(amount)} is on its way to ${destination}. Your ref is ${reference} — this chat is your receipt.`),
+        ]
+      : [
+          { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
+          bot(`Your proof passed our automated checks. Our team will confirm it and release ${money(amount)} to ${destination}. Your ref is ${reference}.`),
+        ];
+
     respond(
-      [
-        bot("Reading your proof…"),
-        {
-          id: newId(),
-          role: "bot",
-          kind: "read",
-          amount,
-          reference: `MP${randomFrom("0123456789", 11)}`,
-          sender: REGISTERED_NUMBER,
-          confidence: 96,
-        },
-        {
-          id: newId(),
-          role: "bot",
-          kind: "checks",
-          items: [
-            `Amount matches request (${money(amount)})`,
-            "Reference not used before",
-            "Within limits ($5 – $2,000)",
-            "Sender is the registered number",
-          ],
-        },
-        { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
-        bot(`${money(amount)} is on its way to ${destination}. Your ref is ${reference} — this chat is your receipt.`),
-      ],
+      [readCard, checksCard, ...outcome],
       () => {
         setStage("ended");
         setStep(5);
@@ -508,10 +608,15 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const result: Msg[] =
       amount >= LARGE_PAYOUT
         ? [bot("Large payouts get a human check — our team will confirm shortly.")]
-        : [
-            { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
-            bot(`${money(amount)} is on its way to EcoCash ${value}. Your ref is ${reference} — this chat is your receipt.`),
-          ];
+        : AUTO_APPROVE
+          ? [
+              { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
+              bot(`${money(amount)} is on its way to EcoCash ${value}. Your ref is ${reference} — this chat is your receipt.`),
+            ]
+          : [
+              { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
+              bot(`Our team will confirm your transfer and send ${money(amount)} to EcoCash ${value}. Your ref is ${reference}.`),
+            ];
 
     respond(
       [wait, ...result],
@@ -527,11 +632,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const value = input.trim();
     if (!value || typing) return;
     setInput("");
-    if (stage === "amount") return submitCustom(value);
-    if (stage === "number") return confirmNumber(value);
+    if (value.includes("?")) return askAI(value);
+    if (stage === "amount") return /\d/.test(value) ? submitCustom(value) : askAI(value);
+    if (stage === "number") return digits(value).length >= 7 ? confirmNumber(value) : askAI(value);
     if (stage === "detail") return submitDetail(value);
-    push(me(value));
-    respond([bot("Thanks — please pick one of the options above, or a Coinspace specialist will follow up here.")]);
+    askAI(value);
   };
 
   const accountHelp = () => {
@@ -664,7 +769,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
           <div key={m.id} className="max-w-[84%] rounded-2xl bg-[#fffffc] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
             <h3 className="mb-2 text-[15px] font-bold">What the AI read</h3>
             <div className="space-y-1 text-[13px]">
-              <div className="flex justify-between gap-4"><span>Amount</span><span className="font-bold">{money(m.amount)}</span></div>
+              <div className="flex justify-between gap-4"><span>Amount</span><span className="font-bold">{m.amount === null ? "—" : money(m.amount)}</span></div>
               <div className="flex justify-between gap-4"><span>Reference</span><span className="font-mono">{m.reference}</span></div>
               <div className="flex justify-between gap-4"><span>Sender</span><span className="font-mono">{m.sender}</span></div>
             </div>
@@ -680,7 +785,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
             <h3 className="mb-2 text-[15px] font-bold">Rule checks</h3>
             <ul className="space-y-1 text-[14px]">
               {m.items.map((item) => (
-                <li key={item}><span className="mr-1.5 text-emerald-600">✓</span>{item}</li>
+                <li key={item.text}><span className={`mr-1.5 ${item.ok ? "text-emerald-600" : "text-red-600"}`}>{item.ok ? "✓" : "✗"}</span>{item.text}</li>
               ))}
             </ul>
           </div>
@@ -693,7 +798,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
               {m.label}
               {m.sub && <span className="ml-1 text-xs font-medium"> · {m.sub}</span>}
             </span>
-          </div>
+                      </div>
         );
     }
   };

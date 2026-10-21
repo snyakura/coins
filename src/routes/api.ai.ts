@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { callModel, type ChatMsg } from "@/lib/ai.server";
-import { ANALYSE_SYSTEM, CHAT_SYSTEM, TRANSACTION_SYSTEM } from "@/lib/ai-prompts";
+import { ANALYSE_SYSTEM, CHAT_SYSTEM, OFF_TOPIC_REPLY, PROOF_SYSTEM, TRANSACTION_SYSTEM } from "@/lib/ai-prompts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/ai")({
       POST: async ({ request }) => {
         try {
           const body = await request.json();
-          const mode = body.mode as "chat" | "analyse" | "transaction";
+          const mode = body.mode as "chat" | "analyse" | "transaction" | "proof";
           const messages: ChatMsg[] = (Array.isArray(body.messages) ? body.messages : [])
             .filter((m: any) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string")
             .slice(-20)
@@ -37,14 +37,47 @@ export const Route = createFileRoute("/api/ai")({
             return json({ analysis: JSON.parse(raw.slice(start, end + 1)) });
           }
 
+          if (mode === "proof") {
+            if (!image) return json({ error: "Image required" }, 400);
+            const raw = await callModel({
+              system: PROOF_SYSTEM,
+              messages: [{ role: "user", content: "Read this payment confirmation." }],
+              image,
+              json: true,
+            });
+            const start = raw.indexOf("{");
+            const end = raw.lastIndexOf("}");
+            if (start === -1 || end <= start) throw new Error("AI returned an unreadable answer");
+            return json({ proof: JSON.parse(raw.slice(start, end + 1)) });
+          }
+
           if (!messages.length) return json({ error: "No message" }, 400);
           const context = typeof body.context === "string" ? body.context.slice(0, 3000) : "";
           const base = mode === "transaction" ? TRANSACTION_SYSTEM : CHAT_SYSTEM;
-          const system = context ? `${base}\n\nContext from the user's latest chart analysis:\n${context}` : base;
+          const system = context
+            ? `${base}\n\n${mode === "transaction" ? "Current chat state" : "Context from the user's latest chart analysis"}:\n${context}`
+            : base;
+
+          if (mode === "transaction") {
+            const raw = await callModel({ system, messages, json: true });
+            let parsed: { onTopic?: boolean; reply?: string } | null = null;
+            try {
+              parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+            } catch {
+              parsed = null;
+            }
+            if (!parsed) {
+              return json({ reply: "Sorry, I didn't catch that. Could you rephrase your question about deposits or withdrawals?" });
+            }
+            // The server decides: anything not clearly on topic gets the fixed reply, whatever the model wrote.
+            if (parsed.onTopic !== true || !parsed.reply) return json({ reply: OFF_TOPIC_REPLY });
+            return json({ reply: String(parsed.reply).slice(0, 1200) });
+          }
+
           return json({ reply: await callModel({ system, messages, image }) });
         } catch (e) {
           console.error("ai:", e);
-          const busy = e instanceof Error && /Gemini error (429|500|503)|OpenAI error 429/.test(e.message);
+          const busy = e instanceof Error && /(Gemini|OpenAI|Anthropic) error (429|500|502|503|504|529)/.test(e.message);
           return json(
             {
               error: busy
