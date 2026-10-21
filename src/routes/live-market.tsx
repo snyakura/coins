@@ -1,26 +1,201 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { BarChart3, Flame, MoreVertical, Newspaper, Plus, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { CoinspaceShell } from "@/components/CoinspaceShell";
-import { MarketChart } from "@/components/MarketChart";
+import { MarketCalendar } from "@/components/MarketCalendar";
+import { TradingViewWidget } from "@/components/TradingViewWidget";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/live-market")({
-  head: () => ({ meta: [
-    { title: "Live Markets — Coinspace" }, { name: "description", content: "Track live forex, commodities, crypto, and market news with Coinspace." },
-    { property: "og:title", content: "Live Markets — Coinspace" }, { property: "og:description", content: "Live prices, charts, movers, and market news." },
-    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" },
-  ]}), component: LiveMarketPage,
+  head: () => ({
+    meta: [
+      { title: "Live Markets — Coinspace" },
+      { name: "description", content: "Live forex, metals, crypto and index charts with the weekly economic calendar." },
+      { property: "og:title", content: "Live Markets — Coinspace" },
+      { property: "og:description", content: "Live charts, prices and the economic calendar." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: LiveMarketPage,
 });
 
-const watchlist: Array<[string, string, string, string]> = [["₿","BTC/USDT","68,432","+1.80%"],["◆","XAU/USD","2,341","+0.60%"],["🇺🇸","EUR/USD","1.0868","+0.12%"],["🇬🇧","GBP/USD","1.2641","-0.08%"],["🇺🇸","USD/JPY","155.20","+0.21%"],["♦","ETH/USDT","3,245","+2.14%"],["≋","SOL/USDT","172.36","+3.28%"],["X","XRP/USDT","0.5871","-0.46%"],["●","AAPL","189.32","+0.33%"],["T","TSLA","251.14","-1.20%"]];
+const GROUPS: Record<string, [string, string][]> = {
+  Forex: [
+    ["FX:EURUSD", "EUR/USD"], ["FX:GBPUSD", "GBP/USD"], ["FX:USDJPY", "USD/JPY"], ["FX:AUDUSD", "AUD/USD"],
+    ["FX:USDCAD", "USD/CAD"], ["FX:USDCHF", "USD/CHF"], ["FX:NZDUSD", "NZD/USD"],
+  ],
+  Metals: [["TVC:GOLD", "Gold"], ["TVC:SILVER", "Silver"]],
+  Crypto: [["BINANCE:BTCUSDT", "BTC/USDT"], ["BINANCE:ETHUSDT", "ETH/USDT"], ["BINANCE:SOLUSDT", "SOL/USDT"]],
+  Indices: [["TVC:DXY", "US Dollar Index"], ["FOREXCOM:SPXUSD", "S&P 500"], ["FOREXCOM:NSXUSD", "Nasdaq 100"], ["TVC:DJI", "Dow 30"]],
+};
+
+const WATCHLIST = ["FX:EURUSD", "FX:GBPUSD", "FX:USDJPY", "TVC:GOLD", "BINANCE:BTCUSDT", "BINANCE:ETHUSDT", "TVC:DXY", "FOREXCOM:SPXUSD"];
+
+const TICKER = [
+  ["FX:EURUSD", "EUR/USD"], ["FX:GBPUSD", "GBP/USD"], ["FX:USDJPY", "USD/JPY"], ["TVC:GOLD", "Gold"],
+  ["BINANCE:BTCUSDT", "BTC"], ["BINANCE:ETHUSDT", "ETH"], ["TVC:DXY", "DXY"],
+].map(([proName, title]) => ({ proName, title }));
+
+function pill(active: boolean) {
+  return `shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+    active ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
+  }`;
+}
 
 function LiveMarketPage() {
-  const [period,setPeriod]=useState("1H");
-  return <CoinspaceShell><main className="page-container py-4">
-    <section className="panel grid divide-y divide-border overflow-hidden sm:grid-cols-3 sm:divide-x sm:divide-y-0">{[["🇺🇸","EUR/USD","1.0868","+0.12%"],["🟨","XAU/USD","2,341","+0.6%"],["₿","BTC/USDT","68,432","+1.8%"]].map(([icon,name,price,change])=><div key={name} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-4"><span className="text-2xl">{icon}</span><strong>{name}</strong><div><strong className="text-xl">{price}</strong><span className="ml-3 font-bold text-positive">{change}</span></div></div>)}</section>
-    <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_300px]"><section className="panel overflow-hidden"><div className="flex flex-wrap items-center gap-3 border-b border-border p-4"><span className="grid size-9 place-items-center rounded-full bg-market-bitcoin text-market-bitcoin-foreground">₿</span><div><h1 className="font-bold">BTC/USDT</h1><p className="text-xs text-muted-foreground">Bitcoin / TetherUS · 1h · BINANCE</p></div><div className="flex gap-1 lg:ml-4">{["1m","5m","1H","4H","1D"].map((p)=><Button key={p} variant={period===p?"primary":"ghost"} size="sm" onClick={()=>setPeriod(p)}>{p}</Button>)}</div><Button variant="ghost" size="sm" className="ml-auto"><TrendingUp size={16}/> Indicators</Button></div><div className="p-4"><p className="text-xs text-positive">O 68,210&nbsp;&nbsp; H68,521&nbsp;&nbsp; L68,102&nbsp;&nbsp; C68,432&nbsp;&nbsp; +1,222 (+1.82%)</p><p className="mt-2 text-xs text-muted-foreground">MA 7 close <span className="text-chart-blue">68,120</span>&nbsp;&nbsp; MA 25 close <span className="text-market-bitcoin">67,540</span>&nbsp;&nbsp; MA 99 close 66,831</p><div className="mt-3 h-[310px]"><MarketChart candlesticks/></div></div></section>
-      <aside className="panel overflow-hidden"><div className="flex items-center justify-between p-4"><h2 className="font-bold">Watchlist</h2><span className="flex gap-3"><Plus size={18}/><MoreVertical size={18}/></span></div><div className="grid grid-cols-[1fr_auto_auto] gap-3 border-y border-border px-4 py-2 text-xs text-muted-foreground"><span>Symbol</span><span>Price</span><span>Change</span></div>{watchlist.map(([icon,symbol,price,change])=><div key={symbol} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border px-4 py-2 text-sm last:border-0"><span className="min-w-0 truncate">{icon} &nbsp;{symbol}</span><span>{price}</span><span className={change.startsWith("-")?"text-negative":"text-positive"}>{change}</span></div>)}</aside></div>
-    <div className="mt-4 grid gap-4 lg:grid-cols-3"><section className="panel p-5"><h2 className="flex items-center gap-2 font-bold"><BarChart3 size={18}/> Market Overview</h2><div className="mt-5 grid grid-cols-3 divide-x divide-border"><div><small>Total Markets</small><strong className="block text-2xl">1,248</strong><span className="text-sm text-positive">+0.52%</span></div><div className="pl-6"><small>Gainers</small><strong className="block text-2xl text-positive">892</strong></div><div className="pl-6"><small>Losers</small><strong className="block text-2xl text-negative">356</strong></div></div></section><section className="panel p-5"><h2 className="flex items-center gap-2 font-bold"><Flame size={18}/> Top Movers</h2><div className="mt-3 space-y-3">{[["XAU/USD","2,341","+0.60%"],["SOL/USDT","172.36","+3.28%"],["ETH/USDT","3,245","+2.14%"]].map((row)=><div key={row[0]} className="grid grid-cols-[1fr_auto_auto] gap-4 text-sm"><span>{row[0]}</span><span>{row[1]}</span><span className="text-positive">{row[2]}</span></div>)}</div></section><section className="panel p-5"><h2 className="flex items-center gap-2 font-bold"><Newspaper size={18}/> Market News</h2><div className="mt-3 divide-y divide-border text-sm"><div className="pb-3">US NFP data in focus as dollar holds gains<small className="block text-muted-foreground">2 hours ago · Forex</small></div><div className="pt-3">Bitcoin breaks $68K as institutional inflows grow<small className="block text-muted-foreground">4 hours ago · Crypto</small></div></div></section></div>
-  </main></CoinspaceShell>;
+  const [group, setGroup] = useState("Forex");
+  const [symbol, setSymbol] = useState("FX:EURUSD");
+  const [tz, setTz] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTz(Intl.DateTimeFormat().resolvedOptions().timeZone || "Etc/UTC");
+  }, []);
+
+  function pickGroup(name: string) {
+    setGroup(name);
+    setSymbol(GROUPS[name][0][0]);
+  }
+
+  return (
+    <CoinspaceShell>
+      <main className="page-container py-6 sm:py-8">
+        <h1 className="text-4xl font-extrabold sm:text-5xl">Live Markets</h1>
+        <p className="mt-2 text-base text-muted-foreground sm:text-lg">Real-time charts, prices and the week's economic events.</p>
+
+        {/* Ticker tape */}
+        <div className="panel mt-5 h-[76px] overflow-hidden">
+          {tz && (
+            <TradingViewWidget
+              widget="ticker-tape"
+              className="h-full w-full"
+              config={{ symbols: TICKER, showSymbolLogo: false, colorTheme: "light", isTransparent: true, displayMode: "adaptive", locale: "en" }}
+            />
+          )}
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.7fr_.9fr]">
+          {/* Main chart */}
+          <section className="panel flex flex-col overflow-hidden p-4">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {Object.keys(GROUPS).map((g) => (
+                <button key={g} onClick={() => pickGroup(g)} className={pill(group === g)}>
+                  {g}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-2">
+              {GROUPS[group].map(([sym, label]) => (
+                <button
+                  key={sym}
+                  onClick={() => setSymbol(sym)}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    symbol === sym ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-[480px] sm:h-[560px]">
+              {tz && (
+                <TradingViewWidget
+                  widget="advanced-chart"
+                  className="h-full w-full"
+                  config={{
+                    autosize: true,
+                    symbol,
+                    interval: "60",
+                    timezone: tz,
+                    theme: "light",
+                    style: "1",
+                    locale: "en",
+                    allow_symbol_change: false,
+                    hide_side_toolbar: false,
+                    withdateranges: true,
+                    details: false,
+                    hotlist: false,
+                    calendar: false,
+                    backgroundColor: "#ffffff",
+                    gridColor: "rgba(0, 0, 0, 0.06)",
+                    support_host: "https://www.tradingview.com",
+                  }}
+                />
+              )}
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Charts by{" "}
+              <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer" className="underline">
+                TradingView
+              </a>
+              . Some prices may be delayed.
+            </p>
+          </section>
+
+          <MarketCalendar />
+        </div>
+
+        {/* Watchlist */}
+        <h2 className="mt-8 text-xl font-extrabold">Watchlist</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {WATCHLIST.map((sym) => (
+            <div key={sym} className="panel h-[220px] overflow-hidden">
+              {tz && (
+                <TradingViewWidget
+                  widget="mini-symbol-overview"
+                  lazy
+                  className="h-full w-full"
+                  config={{
+                    symbol: sym,
+                    width: "100%",
+                    height: "100%",
+                    locale: "en",
+                    dateRange: "1D",
+                    colorTheme: "light",
+                    isTransparent: true,
+                    autosize: true,
+                    largeChartUrl: "",
+                    chartOnly: false,
+                    noTimeScale: false,
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Heatmap + AI card */}
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.7fr_.9fr]">
+          <section className="panel h-[420px] overflow-hidden p-2">
+            {tz && (
+              <TradingViewWidget
+                widget="forex-heat-map"
+                lazy
+                className="h-full w-full"
+                config={{
+                  width: "100%",
+                  height: "100%",
+                  currencies: ["EUR", "USD", "JPY", "GBP", "CHF", "AUD", "CAD", "NZD"],
+                  isTransparent: true,
+                  colorTheme: "light",
+                  locale: "en",
+                }}
+              />
+            )}
+          </section>
+
+          <section className="flex flex-col justify-center rounded-2xl bg-[#FFCB05] p-6 text-black">
+            <h2 className="text-2xl font-extrabold leading-tight sm:text-3xl">Analyse any chart with AI</h2>
+            <p className="mt-2 text-sm">Upload a screenshot and get key levels and reasoning in seconds.</p>
+            <Link to="/ai-analyser" className="mt-5 w-fit">
+              <Button variant="dark">
+                Get started <ArrowRight size={16} />
+              </Button>
+            </Link>
+          </section>
+        </div>
+      </main>
+    </CoinspaceShell>
+  );
 }

@@ -14,6 +14,7 @@ import { Route as AiAnalyserRouteImport } from './routes/ai-analyser'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as LiveMarketRouteImport } from './routes/live-market'
 import { Route as ApiAiRouteImport } from './routes/api.ai'
+import { Route as ApiCalendarRouteImport } from './routes/api.calendar'
 import { Route as ApiNewsRouteImport } from './routes/api.news'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const ApiAiRoute = ApiAiRouteImport.update({
   path: '/api/ai',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCalendarRoute = ApiCalendarRouteImport.update({
+  id: '/api/calendar',
+  path: '/api/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNewsRoute = ApiNewsRouteImport.update({
   id: '/api/news',
   path: '/api/news',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
   '/api/ai': typeof ApiAiRoute
+  '/api/calendar': typeof ApiCalendarRoute
   '/api/news': typeof ApiNewsRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
   '/api/ai': typeof ApiAiRoute
+  '/api/calendar': typeof ApiCalendarRoute
   '/api/news': typeof ApiNewsRoute
 }
 export interface FileRoutesById {
@@ -70,14 +78,28 @@ export interface FileRoutesById {
   '/blog': typeof BlogRoute
   '/live-market': typeof LiveMarketRoute
   '/api/ai': typeof ApiAiRoute
+  '/api/calendar': typeof ApiCalendarRoute
   '/api/news': typeof ApiNewsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/ai-analyser' | '/blog' | '/live-market' | '/api/ai' | '/api/news'
+    | '/'
+    | '/ai-analyser'
+    | '/blog'
+    | '/live-market'
+    | '/api/ai'
+    | '/api/calendar'
+    | '/api/news'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/ai-analyser' | '/blog' | '/live-market' | '/api/ai' | '/api/news'
+  to:
+    | '/'
+    | '/ai-analyser'
+    | '/blog'
+    | '/live-market'
+    | '/api/ai'
+    | '/api/calendar'
+    | '/api/news'
   id:
     | '__root__'
     | '/'
@@ -85,6 +107,7 @@ export interface FileRouteTypes {
     | '/blog'
     | '/live-market'
     | '/api/ai'
+    | '/api/calendar'
     | '/api/news'
   fileRoutesById: FileRoutesById
 }
@@ -94,6 +117,7 @@ export interface RootRouteChildren {
   BlogRoute: typeof BlogRoute
   LiveMarketRoute: typeof LiveMarketRoute
   ApiAiRoute: typeof ApiAiRoute
+  ApiCalendarRoute: typeof ApiCalendarRoute
   ApiNewsRoute: typeof ApiNewsRoute
 }
 
@@ -134,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/calendar': {
+      id: '/api/calendar'
+      path: '/api/calendar'
+      fullPath: '/api/calendar'
+      preLoaderRoute: typeof ApiCalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/news': {
       id: '/api/news'
       path: '/api/news'
@@ -150,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogRoute: BlogRoute,
   LiveMarketRoute: LiveMarketRoute,
   ApiAiRoute: ApiAiRoute,
+  ApiCalendarRoute: ApiCalendarRoute,
   ApiNewsRoute: ApiNewsRoute,
 }
 export const routeTree = rootRouteImport
