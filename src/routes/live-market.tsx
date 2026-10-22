@@ -30,7 +30,7 @@ const GROUPS: Record<string, [string, string][]> = {
   Indices: [["TVC:DXY", "US Dollar Index"], ["FOREXCOM:SPXUSD", "S&P 500"], ["FOREXCOM:NSXUSD", "Nasdaq 100"], ["TVC:DJI", "Dow 30"]],
 };
 
-const WATCHLIST = ["FX:EURUSD", "FX:GBPUSD", "FX:USDJPY", "TVC:GOLD", "BINANCE:BTCUSDT", "BINANCE:ETHUSDT", "TVC:DXY", "FOREXCOM:SPXUSD"];
+
 
 const TICKER = [
   ["FX:EURUSD", "EUR/USD"], ["FX:GBPUSD", "GBP/USD"], ["FX:USDJPY", "USD/JPY"], ["TVC:GOLD", "Gold"],
@@ -145,35 +145,6 @@ function LiveMarketPage() {
               <MarketCalendar />
             </div>
           </div>
-        </div>
-
-        {/* Watchlist */}
-        <h2 className="mt-8 text-xl font-extrabold">Watchlist</h2>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {WATCHLIST.map((sym) => (
-            <div key={sym} className="panel h-[200px] min-w-0 overflow-hidden sm:h-[220px]">
-              {tz && (
-                <TradingViewWidget
-                  widget="mini-symbol-overview"
-                  lazy
-                  className="h-full w-full"
-                  config={{
-                    symbol: sym,
-                    width: "100%",
-                    height: "100%",
-                    locale: "en",
-                    dateRange: "1D",
-                    colorTheme: "light",
-                    isTransparent: true,
-                    autosize: true,
-                    largeChartUrl: "",
-                    chartOnly: false,
-                    noTimeScale: false,
-                  }}
-                />
-              )}
-            </div>
-          ))}
         </div>
 
         {/* Heatmap + AI card */}
