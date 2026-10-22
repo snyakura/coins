@@ -101,7 +101,7 @@ export function MarketCalendar() {
   const next = now ? events.find((e) => e.impact === "High" && e.time > now) : undefined;
 
   return (
-    <section className="panel flex flex-col p-4 lg:h-[600px]">
+            <section className="panel flex max-h-[560px] min-w-0 flex-col p-3 sm:p-4 lg:h-full lg:max-h-none">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-extrabold">Market calendar</h2>
         <button onClick={load} aria-label="Refresh calendar" className="text-muted-foreground hover:text-foreground">

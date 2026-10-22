@@ -47,9 +47,15 @@ function LiveMarketPage() {
   const [group, setGroup] = useState("Forex");
   const [symbol, setSymbol] = useState("FX:EURUSD");
   const [tz, setTz] = useState<string | null>(null);
+  const [compact, setCompact] = useState(false); // phones
 
   useEffect(() => {
     setTz(Intl.DateTimeFormat().resolvedOptions().timeZone || "Etc/UTC");
+    const mq = window.matchMedia("(max-width: 639px)");
+    setCompact(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setCompact(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   function pickGroup(name: string) {
@@ -59,12 +65,12 @@ function LiveMarketPage() {
 
   return (
     <CoinspaceShell>
-      <main className="page-container py-6 sm:py-8">
+      <main className="page-container min-w-0 py-6 sm:py-8">
         <h1 className="text-4xl font-extrabold sm:text-5xl">Live Markets</h1>
         <p className="mt-2 text-base text-muted-foreground sm:text-lg">Real-time charts, prices and the week's economic events.</p>
 
         {/* Ticker tape */}
-        <div className="panel mt-5 h-[76px] overflow-hidden">
+        <div className="panel mt-5 h-[76px] min-w-0 overflow-hidden">
           {tz && (
             <TradingViewWidget
               widget="ticker-tape"
@@ -74,9 +80,9 @@ function LiveMarketPage() {
           )}
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1.7fr_.9fr]">
-          {/* Main chart */}
-          <section className="panel flex flex-col overflow-hidden p-4">
+        {/* Chart + calendar */}
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,0.9fr)]">
+          <section className="panel flex min-w-0 flex-col overflow-hidden p-3 sm:p-4">
             <div className="flex gap-2 overflow-x-auto pb-1">
               {Object.keys(GROUPS).map((g) => (
                 <button key={g} onClick={() => pickGroup(g)} className={pill(group === g)}>
@@ -98,7 +104,7 @@ function LiveMarketPage() {
               ))}
             </div>
 
-            <div className="h-[480px] sm:h-[560px]">
+            <div className="h-[420px] min-w-0 sm:h-[520px] lg:h-[580px]">
               {tz && (
                 <TradingViewWidget
                   widget="advanced-chart"
@@ -112,8 +118,8 @@ function LiveMarketPage() {
                     style: "1",
                     locale: "en",
                     allow_symbol_change: false,
-                    hide_side_toolbar: false,
-                    withdateranges: true,
+                    hide_side_toolbar: compact,
+                    withdateranges: !compact,
                     details: false,
                     hotlist: false,
                     calendar: false,
@@ -133,14 +139,19 @@ function LiveMarketPage() {
             </p>
           </section>
 
-          <MarketCalendar />
+          {/* On large screens the calendar matches the chart's height and scrolls inside itself */}
+          <div className="relative min-w-0">
+            <div className="lg:absolute lg:inset-0">
+              <MarketCalendar />
+            </div>
+          </div>
         </div>
 
         {/* Watchlist */}
         <h2 className="mt-8 text-xl font-extrabold">Watchlist</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {WATCHLIST.map((sym) => (
-            <div key={sym} className="panel h-[220px] overflow-hidden">
+            <div key={sym} className="panel h-[200px] min-w-0 overflow-hidden sm:h-[220px]">
               {tz && (
                 <TradingViewWidget
                   widget="mini-symbol-overview"
@@ -166,8 +177,8 @@ function LiveMarketPage() {
         </div>
 
         {/* Heatmap + AI card */}
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1.7fr_.9fr]">
-          <section className="panel h-[420px] overflow-hidden p-2">
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,0.9fr)]">
+          <section className="panel h-[340px] min-w-0 overflow-hidden p-2 sm:h-[420px]">
             {tz && (
               <TradingViewWidget
                 widget="forex-heat-map"
@@ -185,7 +196,7 @@ function LiveMarketPage() {
             )}
           </section>
 
-          <section className="flex flex-col justify-center rounded-2xl bg-[#FFCB05] p-6 text-black">
+          <section className="flex min-w-0 flex-col justify-center rounded-2xl bg-[#FFCB05] p-5 text-black sm:p-6">
             <h2 className="text-2xl font-extrabold leading-tight sm:text-3xl">Analyse any chart with AI</h2>
             <p className="mt-2 text-sm">Upload a screenshot and get key levels and reasoning in seconds.</p>
             <Link to="/ai-analyser" className="mt-5 w-fit">
