@@ -398,11 +398,14 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
       <MobileMenu open={menuOpen} pathname={pathname} onClose={closeMenu} onChat={chatFromMenu} returnFocusRef={menuButtonRef} />
       {children}
       <SiteFooter logo={<Logo size={footerLogoSize} />} />
-      <Button variant="chat" className="fixed bottom-4 right-4 z-20 shadow-panel sm:bottom-5 sm:right-5" onClick={() => setChat("support")}>
-        <span className="grid size-5 place-items-center rounded-full border border-current text-xs">C</span>
-        <span className="sm:hidden">Chat</span>
-        <span className="hidden sm:inline">Chat with Coinspace</span>
-      </Button>
+           <button
+        type="button"
+        onClick={() => setChat("support")}
+        aria-label="Chat with Coinspace"
+        className="fixed bottom-4 right-4 z-20 grid size-14 place-items-center rounded-full bg-[#f0b90b] shadow-panel transition-transform duration-200 hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground motion-reduce:transform-none sm:bottom-5 sm:right-5 sm:size-16"
+      >
+        <img src="/bull.svg" alt="" className="size-10 sm:size-11" />
+      </button>
       <TransactionChat mode={chat} onClose={() => setChat(null)} />
     </div>
   );

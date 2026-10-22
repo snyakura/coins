@@ -814,8 +814,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       >
         <header className="bg-[#080a0a] px-5 pb-3 pt-4 text-white">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#f0b90b] text-lg font-black text-black">C</span>
+            <div className="flex min-w-0 items-center gap-3">                           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f0b90b]"><img src="/bull.svg" alt="" className="size-7" /></span>
               <div className="min-w-0">
                 <h2 className="truncate text-[17px] font-bold leading-tight">Coinspace Assistant</h2>
                 <p className="flex items-center gap-1.5 text-xs text-white/60">
