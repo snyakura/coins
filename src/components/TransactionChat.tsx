@@ -5,34 +5,35 @@ import { chatWithAI, prepareImage, readProof, type ProofRead } from "@/lib/ai-cl
 export type ChatMode = "deposit" | "withdraw" | "support";
 
 type Flow = "deposit" | "withdraw";
-type Asset = "USDT" | "WELTRADE" | "DERIV" | "OTHER";
-type Pending = "coin" | "address" | "weltradeId" | "derivNick" | "";
+type Asset = "USDT" | "WELTRADE" | "DERIV";
+type PaymentGateway = "Ecocash" | "InnBucks" | "FNB BUSINESS ACCOUNT";
+type Pending = "address" | "weltradeId" | "derivNick" | "";
 type Stage =
   | "menu"
   | "asset"
-  | "network"
-  | "method"
+  | "gateway"
   | "detail"
   | "amount"
   | "pay"
   | "send"
   | "proof"
   | "processing"
-  | "number"
+  | "payoutDetails"
   | "ended";
 
 type CardRowData = { label: string; value: string; copy?: boolean };
 
 type Msg =
   | { id: number; role: "bot" | "user"; kind: "text"; text: string; time: string }
-  | { id: number; role: "bot"; kind: "pay"; amount: number; destination: string; reference: string }
+  | { id: number; role: "bot"; kind: "pay"; amount: number; gateway: PaymentGateway; destination: string }
   | {
       id: number;
       role: "bot";
       kind: "send";
       title: string;
-      amount: number;
-      reference: string;
+      netAmount: number;
+      fee: number;
+      grossAmount: number;
       rows: CardRowData[];
       qr?: string;
       steps?: string[];
@@ -46,63 +47,59 @@ type Msg =
 type Ctx = {
   flow: Flow | null;
   asset: Asset | "";
-  method: string; // network (deposit) or Binance ID / OKX ID / network (withdraw)
-  coin: string;
-  detail: string; // Weltrade user ID, Deriv nickname or wallet address
+  gateway: PaymentGateway | "";
+  detail: string;
   pending: Pending;
   destination: string;
   amount: number;
-  reference: string;
+  fee: number;
+  netAmount: number;
+  payoutName: string;
+  payoutNumber: string;
 };
 
 const emptyCtx = (flow: Flow | null = null): Ctx => ({
   flow,
   asset: "",
-  method: "",
-  coin: "",
+  gateway: "",
   detail: "",
   pending: "",
   destination: "",
   amount: 0,
-  reference: "",
+  fee: 0,
+  netAmount: 0,
+  payoutName: "",
+  payoutNumber: "",
 });
 
 const ASSETS: { id: Asset; label: string }[] = [
-  { id: "USDT", label: "USDT" },
+  { id: "USDT", label: "USDT (TRC20)" },
   { id: "WELTRADE", label: "Weltrade" },
   { id: "DERIV", label: "Deriv" },
-  { id: "OTHER", label: "Other" },
 ];
-const NETWORKS = ["POLYGON", "OPTOS", "TRC20"];
-const WITHDRAW_METHODS = ["Binance ID", "OKX ID", ...NETWORKS];
-const QUICK_COINS = ["BTC", "ETH", "BNB", "SOL"];
-const QUICK_AMOUNTS = [10, 20, 50, 100, 250];
+
+const PAYMENT_GATEWAYS: { id: PaymentGateway; label: string }[] = [
+  { id: "Ecocash", label: "EcoCash" },
+  { id: "InnBucks", label: "InnBucks" },
+  { id: "FNB BUSINESS ACCOUNT", label: "FNB Business Account" },
+];
+
+const QUICK_AMOUNTS = [10, 50, 100, 500, 1000];
 const MIN_AMOUNT = 5;
 const MAX_DEPOSIT = 2000;
-const LARGE_PAYOUT = 200; // payouts at or above this wait for a human check
-const MERCHANT = { name: "Coinspace (Pvt) Ltd", code: "100234", number: "+263 77 000 1234" };
-const REGISTERED_NUMBER = "+263 77 123 4567";
+const LARGE_PAYOUT = 200;
 
-// Safe default: the chat never says a payment is approved until you connect a real confirmation source.
+const GATEWAY_DETAILS: Record<PaymentGateway, { name?: string; number?: string; bank?: string; accNumber?: string }> = {
+  Ecocash: { name: "Marc Anthony Zhou", number: "+263 78 429 3089" },
+  InnBucks: { name: "Marc Anthony Zhou", number: "+263 78 429 3089" },
+  "FNB BUSINESS ACCOUNT": { bank: "FNB BUSINESS ACCOUNT", accNumber: "63051409861" },
+};
+
 const AUTO_APPROVE = false;
-// Turn on only after real client numbers are loaded (REGISTERED_NUMBER above is a placeholder).
-const CHECK_SENDER = false;
-const digits = (s: string) => s.replace(/\D/g, "");
-
-// TODO: replace these placeholders with your real details and QR images (put QR files in /public/qr).
-const OUR_ACCOUNTS: Record<string, { address: string; qr: string }> = {
-  TRC20: { address: "TXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", qr: "/qr/usdt-trc20.png" },
-  OPTOS: { address: "0xXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", qr: "/qr/usdt-optos.png" },
-  POLYGON: { address: "0xXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", qr: "/qr/usdt-polygon.png" },
-};
-const EXCHANGE_IDS: Record<string, string> = {
-  "Binance ID": "000000000",
-  "OKX ID": "000000000",
-};
-const AGENT_NAME = "Forex Mafia";
+const USDT_TRC20_ACCOUNT = { address: "TPvTAj6W8AZQzsnu27TsPjUMR7tNJ9CHgP", qr: "/qr/usdt-trc20.png" };
+const AGENT_NAME = "Coinspace";
 
 const DETAIL_PROMPTS: Record<Exclude<Pending, "">, string> = {
-  coin: "Type the coin (e.g. BTC)",
   address: "Wallet address",
   weltradeId: "Weltrade user ID",
   derivNick: "Deriv nickname",
@@ -113,15 +110,26 @@ const newId = () => ++nextId;
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 const money = (n: number) => `$${n.toFixed(2)}`;
 const plain = (n: number) => `$${+n.toFixed(2)}`;
-const randomFrom = (chars: string, length: number) =>
-  Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-const makeReference = () => `CS-${randomFrom("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 5)}`;
 
 const bot = (text: string): Msg => ({ id: newId(), role: "bot", kind: "text", text, time: now() });
 const me = (text: string): Msg => ({ id: newId(), role: "user", kind: "text", text, time: now() });
 
 const chip = "rounded-full border border-black bg-white px-4 py-1.5 text-sm font-bold text-black transition-colors hover:bg-black hover:text-white";
 const textField = "h-12 min-w-0 flex-1 rounded-full bg-[#e9e9e5] px-5 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-black/10";
+
+function FormattedText({ text }: { text: string }) {
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return (
+    <span className="whitespace-pre-line">
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={i} className="font-bold">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      })}
+    </span>
+  );
+}
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -158,8 +166,9 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   const [typing, setTyping] = useState(false);
   const [input, setInput] = useState("");
   const [custom, setCustom] = useState("");
-  const [numberInput, setNumberInput] = useState("");
   const [detailInput, setDetailInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
+  const [numberInput, setNumberInput] = useState("");
   const [pendingKind, setPendingKind] = useState<Pending>("");
 
   const ctx = useRef<Ctx>(emptyCtx());
@@ -177,7 +186,6 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   };
   const push = (...items: Msg[]) => setMessages((current) => [...current, ...items]);
 
-  // Shows the typing dots, then reveals each bot message one after another.
   const respond = (items: Msg[], after?: () => void, gap = 750) => {
     setTyping(true);
     items.forEach((item, index) => {
@@ -195,12 +203,12 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ctx.current = emptyCtx(next);
     setFlow(next);
     setStep(1);
-    setStage("asset");
+    setStage("gateway");
     respond([
       bot(
         next === "deposit"
-          ? "Great — let's get that deposit started. What would you like to deposit?"
-          : "Let's sort out your withdrawal. What would you like to withdraw?",
+          ? "Please select your preferred payment gateway for your deposit:"
+          : "Please select your preferred payment gateway for your withdrawal:"
       ),
     ]);
   };
@@ -219,13 +227,14 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setTyping(false);
     setInput("");
     setCustom("");
-    setNumberInput("");
     setDetailInput("");
+    setNameInput("");
+    setNumberInput("");
     setPendingKind("");
     ctx.current = emptyCtx();
     aiHistory.current = [];
     if (mode === "support") {
-      respond([bot("Hi! I'm the Coinspace assistant. How can I help you today?")]);
+      respond([bot("Hi! I am the Coinspace assistant. How can I help you today?")]);
     } else if (mode) {
       begin(mode);
     }
@@ -239,16 +248,29 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
   if (!mode) return null;
 
+  const pickGateway = (gateway: PaymentGateway, label: string) => {
+    if (typing) return;
+    push(me(label));
+    ctx.current.gateway = gateway;
+    setStage("asset");
+    respond([
+      bot("Please choose your asset:\n\nNote: For USDT, transactions are strictly on the **TRC20 network**."),
+    ]);
+  };
+
   const askAmount = () => {
     setStage("amount");
     setStep(2);
-    respond([
-      bot(
-        ctx.current.flow === "deposit"
-          ? "How much would you like to deposit? (min $5, max $2,000)"
-          : "How much would you like to withdraw? (min $5)",
-      ),
-    ]);
+    
+    if (ctx.current.flow === "deposit") {
+      respond([
+        bot("How much would you like to deposit? (Min: $5, Max: $2,000)")
+      ]);
+    } else {
+      respond([
+        bot("How much would you like to withdraw? (Min: $5)\n\nNote: Withdrawals of $1,000 or more will have a **5% fee** automatically subtracted from the requested amount.")
+      ]);
+    }
   };
 
   const askDetail = (pending: Exclude<Pending, "">, text: string) => {
@@ -266,14 +288,12 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const deposit = ctx.current.flow === "deposit";
 
     if (asset === "USDT") {
-      setStage(deposit ? "network" : "method");
-      respond([
-        bot(
-          deposit
-            ? "Which USDT network would you like to use?"
-            : "How will you send us the USDT? Choose Binance ID, OKX ID or a network.",
-        ),
-      ]);
+      ctx.current.destination = "USDT · TRC20";
+      if (deposit) {
+        askDetail("address", "Please paste your USDT TRC20 wallet address.");
+      } else {
+        askAmount();
+      }
       return;
     }
     if (asset === "WELTRADE") {
@@ -282,24 +302,9 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       return;
     }
     if (asset === "DERIV") {
-      if (deposit) askDetail("derivNick", "What's your Deriv nickname?");
+      if (deposit) askDetail("derivNick", "What is your Deriv nickname?");
       else askAmount();
       return;
-    }
-    askDetail(
-      "coin",
-      `Which crypto would you like to ${deposit ? "deposit" : "withdraw"}? Pick one or type the coin name.`,
-    );
-  };
-
-  const pickMethod = (method: string) => {
-    if (typing) return;
-    push(me(method));
-    ctx.current.method = method;
-    if (ctx.current.flow === "deposit") {
-      askDetail("address", `Paste the ${method} wallet address where we should send your USDT.`);
-    } else {
-      askAmount();
     }
   };
 
@@ -309,53 +314,32 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (!value) return;
     setDetailInput("");
     push(me(value));
-    const deposit = ctx.current.flow === "deposit";
-
-    switch (ctx.current.pending) {
-      case "coin": {
-        const coin = value.toUpperCase();
-        ctx.current.coin = coin;
-        if (deposit) askDetail("address", `Paste the ${coin} wallet address where we should send your ${coin}.`);
-        else askAmount();
-        return;
-      }
-      default:
-        ctx.current.detail = value;
-        ctx.current.pending = "";
-        askAmount();
-    }
+    ctx.current.detail = value;
+    ctx.current.pending = "";
+    askAmount();
   };
 
   const destinationLabel = () => {
-    const { asset, method, detail, coin } = ctx.current;
-    if (asset === "USDT") return `USDT · ${method}`;
+    const { asset, detail } = ctx.current;
+    if (asset === "USDT") return "USDT · TRC20";
     if (asset === "WELTRADE") return `Weltrade · ID ${detail}`;
     if (asset === "DERIV") return `Deriv · ${detail}`;
-    return `${coin} wallet`;
+    return "USDT wallet";
   };
 
-  // Details the client needs in order to send us their funds (withdrawals).
-  const sendCard = (amount: number, reference: string): Msg => {
-    const { asset, method, coin } = ctx.current;
-    const base = { id: newId(), role: "bot" as const, kind: "send" as const, amount, reference };
+  const sendCard = (amount: number, fee: number, netAmount: number): Msg => {
+    const { asset } = ctx.current;
+    const base = { id: newId(), role: "bot" as const, kind: "send" as const, title: "", netAmount, fee, grossAmount: amount };
 
     if (asset === "USDT") {
-      if (EXCHANGE_IDS[method]) {
-        return {
-          ...base,
-          title: `Send USDT via ${method}`,
-          rows: [{ label: `Our ${method}`, value: EXCHANGE_IDS[method], copy: true }],
-        };
-      }
-      const account = OUR_ACCOUNTS[method];
       return {
         ...base,
-        title: `Send USDT · ${method}`,
+        title: "Send USDT (TRC20 Network Only)",
         rows: [
-          { label: "Network", value: method },
-          { label: "Address", value: account.address, copy: true },
+          { label: "Network", value: "TRC20" },
+          { label: "Address", value: USDT_TRC20_ACCOUNT.address, copy: true },
         ],
-        qr: account.qr,
+        qr: USDT_TRC20_ACCOUNT.qr,
       };
     }
 
@@ -377,18 +361,23 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
     return {
       ...base,
-      title: `Send ${coin}`,
-      rows: [{ label: "Coin", value: coin }],
-      note: `Our team will share the ${coin} deposit address here shortly. Send only after you receive it.`,
+      title: "Send USDT",
+      rows: [{ label: "Network", value: "TRC20" }],
+      note: "Our team will share the deposit address here shortly.",
     };
   };
 
   const chooseAmount = (amount: number) => {
     if (typing) return;
     push(me(plain(amount)));
-    const reference = makeReference();
     ctx.current.amount = amount;
-    ctx.current.reference = reference;
+
+    const isWithdraw = ctx.current.flow === "withdraw";
+    const fee = isWithdraw && amount >= 1000 ? amount * 0.05 : 0;
+    const netAmount = amount - fee;
+
+    ctx.current.fee = fee;
+    ctx.current.netAmount = netAmount;
 
     if (ctx.current.flow === "deposit") {
       const destination = destinationLabel();
@@ -396,8 +385,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       setStage("pay");
       setStep(3);
       respond([
-        bot(`Pay via EcoCash. Send ${money(amount)} using the details below, then tap “I've paid”.`),
-        { id: newId(), role: "bot", kind: "pay", amount, destination, reference },
+        bot(`Please send **${money(amount)}** using your selected gateway (${ctx.current.gateway}).`),
+        { id: newId(), role: "bot", kind: "pay", amount, gateway: ctx.current.gateway as PaymentGateway, destination },
       ]);
       return;
     }
@@ -405,8 +394,12 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setStage("send");
     setStep(3);
     respond([
-      bot(`Got it — withdrawing ${money(amount)}. Follow the details below, then tap “I've sent it”.`),
-      sendCard(amount, reference),
+      bot(
+        isWithdraw && fee > 0
+          ? `Withdrawing **${money(amount)}**. A 5% fee (${money(fee)}) has been subtracted. You will receive a net total of **${money(netAmount)}**.`
+          : `Withdrawing **${money(amount)}**.`
+      ),
+      sendCard(amount, fee, netAmount),
     ]);
   };
 
@@ -432,7 +425,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     push(me("I've paid"));
     setStage("proof");
     setStep(4);
-    respond([bot("Thanks! Please upload a screenshot of your EcoCash confirmation so we can verify it.")]);
+    respond([bot("Thanks! Please upload a screenshot of your payment confirmation so we can verify it.")]);
   };
 
   const sent = () => {
@@ -443,7 +436,6 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     respond([bot("Thanks! Please upload a screenshot of your payment confirmation so we can verify it.")]);
   };
 
-  // Free-text questions go to the AI. Only these messages are sent: wallet addresses, IDs and phone numbers typed into the flow steps never are.
   const askAI = async (text: string) => {
     push(me(text));
     aiHistory.current = [...aiHistory.current, { role: "user" as const, content: text }].slice(-12);
@@ -468,9 +460,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     }
   };
 
-  // Real checks, computed in code from what the AI read.
   const runChecks = (read: ProofRead) => {
-    const { amount, reference, flow: current } = ctx.current;
+    const { amount, flow: current } = ctx.current;
     const items: { ok: boolean; text: string }[] = [];
 
     const amountOk = read.amount !== null && Math.abs(read.amount - amount) < 0.01;
@@ -483,15 +474,6 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
     if (read.currency && !/^(usd|us\$|\$)$/i.test(read.currency.trim())) {
       items.push({ ok: false, text: `Receipt currency is ${read.currency}, expected USD` });
-    }
-
-    if (current === "deposit") {
-      const refOk = !!read.reference && read.reference.toUpperCase().includes(reference.toUpperCase());
-      items.push({ ok: refOk, text: refOk ? `Reference ${reference} found` : `Reference ${reference} not found on the receipt` });
-      if (CHECK_SENDER && read.sender) {
-        const senderOk = digits(read.sender).slice(-9) === digits(REGISTERED_NUMBER).slice(-9);
-        items.push({ ok: senderOk, text: senderOk ? "Sender is the registered number" : "Sender doesn't match the registered number" });
-      }
     }
 
     const statusOk = read.status === "success";
@@ -509,7 +491,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setStage("processing");
     setTyping(true);
 
-    const { amount, reference, destination, flow: current } = ctx.current;
+    const { amount, netAmount, destination, flow: current } = ctx.current;
 
     let read: ProofRead;
     try {
@@ -556,17 +538,16 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       return;
     }
 
-    // Withdrawals: proof is the client's transfer to us, then we ask where to pay out.
     if (current === "withdraw") {
       respond(
         [
           readCard,
           checksCard,
           bot("Proof received — thank you."),
-          bot(`Where should we send your ${money(amount)} payout? Use your registered EcoCash number ${REGISTERED_NUMBER}?`),
+          bot(`Please enter the account name and number linked to your ${ctx.current.gateway} account to receive your payout (**${money(netAmount)}**).`),
         ],
         () => {
-          setStage("number");
+          setStage("payoutDetails");
           setStep(4);
         },
         800,
@@ -577,11 +558,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const outcome: Msg[] = AUTO_APPROVE
       ? [
           { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
-          bot(`${money(amount)} is on its way to ${destination}. Your ref is ${reference} — this chat is your receipt.`),
+          bot(`${money(amount)} is on its way to ${destination}. This chat is your receipt.`),
         ]
       : [
           { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
-          bot(`Your proof passed our automated checks. Our team will confirm it and release ${money(amount)} to ${destination}. Your ref is ${reference}.`),
+          bot(`Your proof passed our automated checks. Our team will confirm it and release ${money(amount)} to ${destination}.`),
         ];
 
     respond(
@@ -594,28 +575,34 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     );
   };
 
-  const confirmNumber = (raw: string) => {
-    const value = raw.trim();
-    if (!value || typing) return;
+  const submitPayoutDetails = () => {
+    const name = nameInput.trim();
+    const number = numberInput.trim();
+    if (!name || !number || typing) return;
+
+    setNameInput("");
     setNumberInput("");
-    push(me(value));
+    push(me(`Name: ${name}, Number: ${number}`));
     setStage("processing");
     setStep(4);
 
-    const { amount, reference } = ctx.current;
+    ctx.current.payoutName = name;
+    ctx.current.payoutNumber = number;
+
+    const { netAmount } = ctx.current;
     const wait: Msg = { id: newId(), role: "system", kind: "pill", tone: "wait", label: "We're checking, please wait" };
 
     const result: Msg[] =
-      amount >= LARGE_PAYOUT
+      netAmount >= LARGE_PAYOUT
         ? [bot("Large payouts get a human check — our team will confirm shortly.")]
         : AUTO_APPROVE
           ? [
               { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
-              bot(`${money(amount)} is on its way to EcoCash ${value}. Your ref is ${reference} — this chat is your receipt.`),
+              bot(`${money(netAmount)} is on its way to ${ctx.current.gateway} (${name} - ${number}). This chat is your receipt.`),
             ]
           : [
               { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
-              bot(`Our team will confirm your transfer and send ${money(amount)} to EcoCash ${value}. Your ref is ${reference}.`),
+              bot(`Our team will confirm and send ${money(netAmount)} to your ${ctx.current.gateway} account (${name} - ${number}).`),
             ];
 
     respond(
@@ -634,7 +621,6 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setInput("");
     if (value.includes("?")) return askAI(value);
     if (stage === "amount") return /\d/.test(value) ? submitCustom(value) : askAI(value);
-    if (stage === "number") return digits(value).length >= 7 ? confirmNumber(value) : askAI(value);
     if (stage === "detail") return submitDetail(value);
     askAI(value);
   };
@@ -660,7 +646,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         return (
           <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[84%] rounded-2xl px-4 py-2.5 text-[15px] leading-6 ${mine ? "bg-[#0a0c0c] text-white" : "bg-[#fffffc] text-neutral-900 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"}`}>
-              <span className={mine ? "font-semibold" : ""}>{m.text}</span>
+              <FormattedText text={m.text} />
               <div className={`mt-0.5 font-mono text-[11px] ${mine ? "text-white/50" : "text-neutral-400"}`}>{m.time}</div>
             </div>
           </div>
@@ -679,7 +665,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
             </div>
           </div>
         );
-      case "pay":
+      case "pay": {
+        const info = GATEWAY_DETAILS[m.gateway];
         return (
           <div key={m.id} className="rounded-2xl bg-[#0a0c0c] p-4 text-white">
             <div className="mb-2 flex items-center justify-between">
@@ -687,20 +674,24 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
                 <span className="grid size-6 place-items-center rounded-full border border-[#f0b90b] text-[#f0b90b]">
                   <Zap className="size-3" />
                 </span>
-                Pay via EcoCash
+                Pay via {m.gateway}
               </div>
               <span className="text-sm font-bold text-[#f0b90b]">{money(m.amount)}</span>
             </div>
-            <CardRow label="Merchant">{MERCHANT.name}</CardRow>
-            <CardRow label="Merchant code">{MERCHANT.code}</CardRow>
-            <CardRow label="Number">
-              {MERCHANT.number}
-              <CopyButton value={MERCHANT.number} label="number" />
-            </CardRow>
-            <CardRow label="Reference">
-              <span className="text-[#f0b90b]">{m.reference}</span>
-              <CopyButton value={m.reference} label="reference" />
-            </CardRow>
+            {info.name && <CardRow label="Account Name">{info.name}</CardRow>}
+            {info.number && (
+              <CardRow label="Number">
+                {info.number}
+                <CopyButton value={info.number} label="number" />
+              </CardRow>
+            )}
+            {info.bank && <CardRow label="Bank">{info.bank}</CardRow>}
+            {info.accNumber && (
+              <CardRow label="Account Number">
+                {info.accNumber}
+                <CopyButton value={info.accNumber} label="account number" />
+              </CardRow>
+            )}
             <CardRow label="Funds delivered to">
               <span className="break-all text-right">{m.destination}</span>
             </CardRow>
@@ -714,6 +705,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
             </button>
           </div>
         );
+      }
       case "send":
         return (
           <div key={m.id} className="rounded-2xl bg-[#0a0c0c] p-4 text-white">
@@ -724,7 +716,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
                 </span>
                 <span className="truncate">{m.title}</span>
               </div>
-              <span className="shrink-0 text-sm font-bold text-[#f0b90b]">{money(m.amount)}</span>
+              <span className="shrink-0 text-sm font-bold text-[#f0b90b]">{money(m.grossAmount)}</span>
             </div>
             {m.rows.map((row) => (
               <CardRow key={row.label} label={row.label}>
@@ -732,10 +724,14 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
                 {row.copy && <CopyButton value={row.value} label={row.label} />}
               </CardRow>
             ))}
-            <CardRow label="Reference">
-              <span className="text-[#f0b90b]">{m.reference}</span>
-              <CopyButton value={m.reference} label="reference" />
-            </CardRow>
+            {m.fee > 0 && (
+              <>
+                <CardRow label="5% Withdrawal Fee">{money(m.fee)}</CardRow>
+                <CardRow label="Net Payout Amount">
+                  <span className="text-[#f0b90b]">{money(m.netAmount)}</span>
+                </CardRow>
+              </>
+            )}
             {m.qr && (
               <img
                 src={m.qr}
@@ -798,7 +794,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
               {m.label}
               {m.sub && <span className="ml-1 text-xs font-medium"> · {m.sub}</span>}
             </span>
-                      </div>
+          </div>
         );
     }
   };
@@ -814,7 +810,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       >
         <header className="bg-[#080a0a] px-5 pb-3 pt-4 text-white">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">                           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f0b90b]"><img src="/bull.svg" alt="" className="size-7" /></span>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f0b90b]"><img src="/bull.svg" alt="" className="size-7" /></span>
               <div className="min-w-0">
                 <h2 className="truncate text-[17px] font-bold leading-tight">Coinspace Assistant</h2>
                 <p className="flex items-center gap-1.5 text-xs text-white/60">
@@ -839,6 +836,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
           </div>
         </header>
 
+        {/* Permanent Top Disclaimer Banner */}
+        <div className="bg-[#fff3cd] border-b border-[#ffeba1] px-4 py-2.5 text-xs font-semibold text-[#856404]">
+          Please ensure all submitted details are accurate. The company is not liable for incorrect inputs.
+        </div>
+
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {messages.map(renderMessage)}
           {typing && (
@@ -862,6 +864,14 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
               </div>
             )}
 
+            {stage === "gateway" && (
+              <div className="flex flex-wrap gap-2">
+                {PAYMENT_GATEWAYS.map((g) => (
+                  <button key={g.id} className={chip} onClick={() => pickGateway(g.id, g.label)}>{g.label}</button>
+                ))}
+              </div>
+            )}
+
             {stage === "asset" && (
               <div className="flex flex-wrap gap-2">
                 {ASSETS.map((a) => (
@@ -870,36 +880,19 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
               </div>
             )}
 
-            {(stage === "network" || stage === "method") && (
-              <div className="flex flex-wrap gap-2">
-                {(stage === "network" ? NETWORKS : WITHDRAW_METHODS).map((m) => (
-                  <button key={m} className={chip} onClick={() => pickMethod(m)}>{m}</button>
-                ))}
-              </div>
-            )}
-
             {stage === "detail" && (
-              <>
-                {pendingKind === "coin" && (
-                  <div className="flex flex-wrap gap-2">
-                    {QUICK_COINS.map((c) => (
-                      <button key={c} className={chip} onClick={() => submitDetail(c)}>{c}</button>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <input
-                    value={detailInput}
-                    onChange={(e) => setDetailInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitDetail(detailInput)}
-                    placeholder={pendingKind ? DETAIL_PROMPTS[pendingKind] : ""}
-                    className={textField}
-                  />
-                  <button className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800" onClick={() => submitDetail(detailInput)}>
-                    Continue
-                  </button>
-                </div>
-              </>
+              <div className="flex gap-2">
+                <input
+                  value={detailInput}
+                  onChange={(e) => setDetailInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submitDetail(detailInput)}
+                  placeholder={pendingKind ? DETAIL_PROMPTS[pendingKind] : ""}
+                  className={textField}
+                />
+                <button className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800" onClick={() => submitDetail(detailInput)}>
+                  Continue
+                </button>
+              </div>
             )}
 
             {stage === "amount" && (
@@ -927,7 +920,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
             {stage === "pay" && (
               <div className="rounded-lg bg-[#faf3cf] px-3 py-2 text-[13px] text-[#8a6d1a]">
-                Pay from your EcoCash app, then tap “I've paid” above.
+                Pay from your {ctx.current.gateway} app, then tap “I've paid” above.
               </div>
             )}
 
@@ -947,28 +940,29 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
               </button>
             )}
 
-            {stage === "number" && (
-              <>
-                <button
-                  className="w-full rounded-full border border-[#eadba0] bg-[#faf0c3] py-2 text-sm font-bold text-[#7a5b00] hover:brightness-95"
-                  onClick={() => confirmNumber(REGISTERED_NUMBER)}
-                >
-                  Use my number · {REGISTERED_NUMBER}
-                </button>
+            {stage === "payoutDetails" && (
+              <div className="space-y-2">
+                <input
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder="Account Name (e.g. John Doe)"
+                  className={textField}
+                  style={{ width: "100%" }}
+                />
                 <div className="flex gap-2">
                   <input
                     value={numberInput}
                     onChange={(e) => setNumberInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && confirmNumber(numberInput)}
+                    onKeyDown={(e) => e.key === "Enter" && submitPayoutDetails()}
                     inputMode="tel"
-                    placeholder={REGISTERED_NUMBER}
+                    placeholder="Account / Phone Number"
                     className={textField}
                   />
-                  <button className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800" onClick={() => confirmNumber(numberInput)}>
-                    Confirm
+                  <button className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800" onClick={submitPayoutDetails}>
+                    Submit
                   </button>
                 </div>
-              </>
+              </div>
             )}
 
             {stage === "ended" && (
