@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Menu, X } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -170,9 +170,10 @@ function reveal(open: boolean, order: number) {
 }
 
 /**
- * Phone menu: a frosted panel that slides in from the right while the page behind it is dimmed and blurred.
- * The links then glide in one after another. Closes with the X button, the Escape key,
- * a tap on the blurred area, or by choosing a link.
+ * Phone menu: a clean full-screen panel in the site's own light background.
+ * The logo and close button sit exactly where they do in the header. Large links with hairline
+ * dividers glide in one after another. Closes with the X button, the Escape key,
+ * or by choosing a link.
  */
 function MobileMenu({
   open,
@@ -226,95 +227,101 @@ function MobileMenu({
     };
   }, [open, onClose, returnFocusRef]);
 
-  const header = reveal(open, 0);
+  const eyebrow = reveal(open, 0);
   const buttons = reveal(open, navigation.length + 1);
 
   return (
-    <>
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className={`fixed inset-0 z-40 bg-foreground/30 backdrop-blur-md transition-opacity duration-500 motion-reduce:transition-none md:hidden ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      />
-      <div
-        id="mobile-menu"
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Menu"
-        inert={!open}
-        className={`fixed inset-y-0 right-0 z-50 flex w-[88%] max-w-sm flex-col overflow-hidden rounded-l-3xl border-l border-border/60 bg-background/85 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
-      >
-        {/* soft yellow glow in the corner */}
-        <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/30 blur-3xl" aria-hidden="true" />
+    <div
+      id="mobile-menu"
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Menu"
+      inert={!open}
+      className={`fixed inset-0 z-50 flex flex-col overflow-hidden bg-background transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:hidden ${open ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"}`}
+    >
+      {/* a very soft yellow glow in the corner */}
+      <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/20 blur-3xl" aria-hidden="true" />
 
-        <div className="relative flex items-start justify-between px-6 pb-5 pt-7">
-          <div className={header.className} style={header.style}>
-            <p className="text-2xl font-extrabold leading-tight">Menu</p>
-            <p className="mt-1 text-sm text-muted-foreground">Explore Coinspace</p>
-          </div>
-          <Button
-            ref={closeRef}
-            variant="ghost"
-            size="icon"
-            className={`-mr-2 -mt-1 rounded-full border border-border/60 bg-background/60 transition-transform duration-300 hover:rotate-90 active:scale-90 motion-reduce:transform-none`}
-            onClick={onClose}
-            aria-label="Close menu"
-          >
-            <X size={22} />
-          </Button>
+      {/* same height and padding as the header, so the logo doesn't move */}
+      <div className="relative flex h-[4.5rem] shrink-0 items-center justify-between px-5 sm:h-20 sm:px-8">
+        <div onClick={onClose}>
+          <Logo />
         </div>
-
-        <nav className="relative flex-1 overflow-y-auto px-4 py-2" aria-label="Mobile navigation">
-          <ul className="grid gap-1.5">
-            {navigation.map((item, index) => {
-              const active = isActivePage(pathname, item.to);
-              const motion = reveal(open, index + 1);
-              return (
-                <li key={item.to} className={motion.className} style={motion.style}>
-                  <Link
-                    to={item.to}
-                    onClick={onClose}
-                    aria-current={active ? "page" : undefined}
-                    className={`flex items-center justify-between rounded-2xl px-5 py-4 text-lg transition-all duration-300 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${active ? "bg-primary font-bold text-foreground shadow-[0_8px_20px_-8px_rgba(0,0,0,0.3)]" : "font-medium text-foreground/70 hover:bg-muted hover:text-foreground"}`}
-                  >
-                    {item.label}
-                    {active && (
-                      <span className="relative flex size-2.5" aria-hidden="true">
-                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-foreground/40 motion-reduce:animate-none" />
-                        <span className="relative inline-flex size-2.5 rounded-full bg-foreground" />
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        <div className={`relative grid gap-3 px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4 ${buttons.className}`} style={buttons.style}>
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="hover:border-primary hover:bg-primary" onClick={() => onChat("deposit")}>
-              Deposit
-            </Button>
-            <Button variant="outline" className="hover:border-primary hover:bg-primary" onClick={() => onChat("withdraw")}>
-              Withdraw
-            </Button>
-          </div>
-          <Button asChild variant="dark" className={`w-full ${contactButton}`}>
-            <a
-              href="#contact"
-              onClick={(event) => {
-                onClose();
-                goToContact(event);
-              }}
-            >
-              Contact us
-            </a>
-          </Button>
-        </div>
+        <Button
+          ref={closeRef}
+          variant="ghost"
+          size="icon"
+          className="rounded-full border border-border/60 bg-background/50 transition-transform duration-300 hover:rotate-90 active:scale-90 motion-reduce:transform-none"
+          onClick={onClose}
+          aria-label="Close menu"
+        >
+          <X size={21} />
+        </Button>
       </div>
-    </>
+
+      <p
+        className={`relative px-6 pb-3 pt-8 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:px-8 ${eyebrow.className}`}
+        style={eyebrow.style}
+      >
+        Menu
+      </p>
+
+      <nav className="relative flex-1 overflow-y-auto px-6 sm:px-8" aria-label="Mobile navigation">
+        <ul className="border-t border-border/70">
+          {navigation.map((item, index) => {
+            const active = isActivePage(pathname, item.to);
+            const motion = reveal(open, index + 1);
+            return (
+              <li key={item.to} className={motion.className} style={motion.style}>
+                <Link
+                  to={item.to}
+                  onClick={onClose}
+                  aria-current={active ? "page" : undefined}
+                  className={`group flex items-center justify-between gap-4 border-b border-border/70 py-5 transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${active ? "text-foreground" : "text-foreground/60 hover:text-foreground"}`}
+                >
+                  <span className="flex items-center gap-3">
+                    {active && <span className="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_0_4px_rgba(255,203,5,0.25)]" aria-hidden="true" />}
+                    <span className={`text-[26px] leading-none tracking-tight ${active ? "font-bold" : "font-medium"}`}>{item.label}</span>
+                  </span>
+                  <ArrowRight
+                    size={20}
+                    strokeWidth={1.75}
+                    className="shrink-0 text-foreground/30 transition-all duration-300 group-hover:translate-x-1 group-hover:text-foreground motion-reduce:transform-none"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div
+        className={`relative grid gap-3 px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-5 sm:px-8 ${buttons.className}`}
+        style={buttons.style}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="outline" className="hover:border-primary hover:bg-primary" onClick={() => onChat("deposit")}>
+            Deposit
+          </Button>
+          <Button variant="outline" className="hover:border-primary hover:bg-primary" onClick={() => onChat("withdraw")}>
+            Withdraw
+          </Button>
+        </div>
+        <Button asChild variant="dark" className={`w-full ${contactButton}`}>
+          <a
+            href="#contact"
+            onClick={(event) => {
+              onClose();
+              goToContact(event);
+            }}
+          >
+            Contact us
+          </a>
+        </Button>
+      </div>
+    </div>
   );
 }
 
