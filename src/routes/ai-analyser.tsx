@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Info, Lock, MessageSquare, RefreshCw, Send, Sparkles, Upload, ImageIcon } from "lucide-react";
 import { CoinspaceShell } from "@/components/CoinspaceShell";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { analyseChart, chatWithAI, prepareImage, type Analysis, type Msg } from "@/lib/ai-client";
 
@@ -26,6 +26,45 @@ const biasStyle = {
   bearish: { text: "text-negative", ring: "border-negative", soft: "bg-muted" },
   neutral: { text: "text-muted-foreground", ring: "border-border", soft: "bg-muted" },
 };
+
+function renderInline(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part,
+  );
+}
+
+function ChatText({ text }: { text: string }) {
+  const blocks: ReactNode[] = [];
+  let list: string[] = [];
+  const flush = () => {
+    if (!list.length) return;
+    blocks.push(
+      <ul key={`ul${blocks.length}`} className="my-1 list-disc space-y-1 pl-5">
+        {list.map((item, i) => (
+          <li key={i}>{renderInline(item)}</li>
+        ))}
+      </ul>,
+    );
+    list = [];
+  };
+  text.split("\n").forEach((line) => {
+    const m = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
+    if (m) {
+      list.push(m[1]);
+    } else {
+      flush();
+      if (line.trim()) {
+        blocks.push(
+          <p key={`p${blocks.length}`} className="[&:not(:first-child)]:mt-2">
+            {renderInline(line)}
+          </p>,
+        );
+      }
+    }
+  });
+  flush();
+  return <>{blocks}</>;
+}
 
 
 function AiAnalyserPage() {
@@ -244,14 +283,30 @@ function AiAnalyserPage() {
         ) : (
           <section className="panel mt-5 flex h-[calc(100dvh-20rem)] min-h-[420px] flex-col overflow-hidden">
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <p className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-6 sm:max-w-[75%] ${m.role === "user" ? "bg-foreground text-background" : "bg-muted"}`}>
-                    {m.content}
-                  </p>
+                           {messages.map((m, i) => (
+                <div key={i} className={`flex items-end gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {m.role === "assistant" && (
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FFCB05] text-xs font-black text-black">C</span>
+                  )}
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-6 sm:max-w-[75%] ${
+                      m.role === "user" ? "rounded-br-md bg-foreground text-background" : "rounded-bl-md bg-muted"
+                    }`}
+                  >
+                    <ChatText text={m.content} />
+                  </div>
                 </div>
               ))}
-              {sending && <p className="animate-pulse text-sm text-muted-foreground">Coinspace AI is typing…</p>}
+                            {sending && (
+                <div className="flex items-end gap-2">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FFCB05] text-xs font-black text-black">C</span>
+                  <div className="flex gap-1 rounded-2xl rounded-bl-md bg-muted px-4 py-3.5">
+                    {[0, 1, 2].map((i) => (
+                      <span key={i} className="size-1.5 animate-pulse rounded-full bg-muted-foreground" style={{ animationDelay: `${i * 150}ms` }} />
+                    ))}
+                  </div>
+                </div>
+              )}
               {chatError && <p className="text-sm text-negative">{chatError}</p>}
               <div ref={endRef} />
             </div>
