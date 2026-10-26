@@ -1,6 +1,7 @@
 import { Check, Copy, Image as ImageIcon, Send, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { chatWithAI, prepareImage, readProof, type ProofRead } from "@/lib/ai-client";
+import { supabase } from "@/lib/supabase";
 
 export type ChatMode = "deposit" | "withdraw" | "support";
 
@@ -197,6 +198,65 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         }
       }, gap * (index + 1));
     });
+  };
+
+const saveCaseToSupabase = async (read?: ProofRead) => {
+    const c = ctx.current;
+    
+    // 1. Get or create a default test client cleanly
+    let clientId: string | null = null;
+    const { data: existingClients } = await supabase.from('clients').select('id').limit(1);
+    
+    if (existingClients && existingClients.length > 0) {
+      clientId = existingClients[0].id;
+    } else {
+      const { data: newClient, error: clientErr } = await supabase.from('clients').insert({
+        name: c.payoutName || 'Client User',
+        initials: 'CU',
+        phone: c.payoutNumber || '+263770000000',
+        joined_at: new Date().toISOString().split('T')[0]
+      }).select('id').single();
+
+      if (clientErr) {
+        console.error('Client creation error:', clientErr.message);
+        return;
+      }
+      clientId = newClient?.id;
+    }
+
+    if (!clientId) return;
+
+    const flag = read && read.amount !== null && Math.abs(read.amount - c.amount) >= 0.01 
+      ? 'Amount mismatch' 
+      : c.amount > LARGE_PAYOUT ? 'Over auto limit' : null;
+
+    const aiReadJson = read ? {
+      amount: read.amount,
+      amount_mismatch: read.amount !== null && Math.abs(read.amount - c.amount) >= 0.01,
+      reference: read.reference || 'REF-' + Math.floor(Math.random() * 100000),
+      sender: read.sender || '+263 77 123 4567',
+      confidence: Math.round(read.confidence)
+    } : null;
+
+    // 2. Insert into cases table
+    const { error: caseErr } = await supabase.from('cases').insert({
+      client_id: clientId,
+      kind: c.flow,
+      amount: c.amount,
+      platform: c.gateway || c.asset || 'Coinspace',
+      reference: read?.reference || 'CS-' + Math.random().toString(36).substring(7).toUpperCase(),
+      status: flag ? 'review' : (AUTO_APPROVE ? 'approved' : 'review'),
+      flag: flag,
+      flag_tone: flag ? 'danger' : 'warn',
+      flag_detail: flag === 'Amount mismatch' ? `Proof shows $${read?.amount} but client requested $${c.amount}` : 'Above auto-payout threshold — staff sign-off required',
+      ai_read: aiReadJson,
+    });
+
+    if (caseErr) {
+      console.error('Supabase case insert error:', caseErr.message);
+    } else {
+      console.log('Transaction successfully recorded to cases queue!');
+    }
   };
 
   const startFlow = (next: Flow) => {
@@ -491,7 +551,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setStage("processing");
     setTyping(true);
 
-    const { amount, netAmount, destination, flow: current } = ctx.current;
+    const { amount, destination, flow: current } = ctx.current;
 
     let read: ProofRead;
     try {
@@ -524,13 +584,16 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     };
     const checksCard: Msg = { id: newId(), role: "bot", kind: "checks", items };
 
+    // Save transaction straight to the unified cases table for staff review queue
+    await saveCaseToSupabase(read);
+
     if (!items.every((i) => i.ok)) {
       respond(
         [
           readCard,
           checksCard,
           { id: newId(), role: "system", kind: "pill", tone: "wait", label: "Needs review" },
-          bot("Some checks didn't pass. You can upload a clearer screenshot, or wait and our team will review it."),
+          bot("Some checks didn't pass. Your case has been sent to our staff review queue."),
         ],
         () => setStage("proof"),
         900,
@@ -544,7 +607,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
           readCard,
           checksCard,
           bot("Proof received — thank you."),
-          bot(`Please enter the account name and number linked to your ${ctx.current.gateway} account to receive your payout (**${money(netAmount)}**).`),
+          bot(`Please enter the account name and number linked to your ${ctx.current.gateway} account to receive your payout.`),
         ],
         () => {
           setStage("payoutDetails");
@@ -555,18 +618,13 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       return;
     }
 
-    const outcome: Msg[] = AUTO_APPROVE
-      ? [
-          { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
-          bot(`${money(amount)} is on its way to ${destination}. This chat is your receipt.`),
-        ]
-      : [
-          { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
-          bot(`Your proof passed our automated checks. Our team will confirm it and release ${money(amount)} to ${destination}.`),
-        ];
-
     respond(
-      [readCard, checksCard, ...outcome],
+      [
+        readCard,
+        checksCard,
+        { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
+        bot(`Your proof passed automated checks. Our team will release ${money(amount)} to ${destination}.`),
+      ],
       () => {
         setStage("ended");
         setStep(5);
@@ -575,7 +633,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     );
   };
 
-  const submitPayoutDetails = () => {
+  const submitPayoutDetails = async () => {
     const name = nameInput.trim();
     const number = numberInput.trim();
     if (!name || !number || typing) return;
@@ -589,24 +647,17 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ctx.current.payoutName = name;
     ctx.current.payoutNumber = number;
 
+    await saveCaseToSupabase();
+
     const { netAmount } = ctx.current;
     const wait: Msg = { id: newId(), role: "system", kind: "pill", tone: "wait", label: "We're checking, please wait" };
 
-    const result: Msg[] =
-      netAmount >= LARGE_PAYOUT
-        ? [bot("Large payouts get a human check — our team will confirm shortly.")]
-        : AUTO_APPROVE
-          ? [
-              { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Approved", sub: "system" },
-              bot(`${money(netAmount)} is on its way to ${ctx.current.gateway} (${name} - ${number}). This chat is your receipt.`),
-            ]
-          : [
-              { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
-              bot(`Our team will confirm and send ${money(netAmount)} to your ${ctx.current.gateway} account (${name} - ${number}).`),
-            ];
-
     respond(
-      [wait, ...result],
+      [
+        wait,
+        { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Submitted", sub: "sent to queue" },
+        bot(`Our team will confirm and send ${money(netAmount)} to your ${ctx.current.gateway} account (${name} - ${number}).`),
+      ],
       () => {
         setStage("ended");
         setStep(5);
@@ -836,7 +887,6 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
           </div>
         </header>
 
-        {/* Permanent Top Disclaimer Banner */}
         <div className="bg-[#fff3cd] border-b border-[#ffeba1] px-4 py-2.5 text-xs font-semibold text-[#856404]">
           Please ensure all submitted details are accurate. The company is not liable for incorrect inputs.
         </div>
