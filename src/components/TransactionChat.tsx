@@ -2,6 +2,7 @@ import { Check, Copy, Image as ImageIcon, Send, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { chatWithAI, prepareImage, readProof, type ProofRead } from "@/lib/ai-client";
 import { supabase } from "@/lib/supabase";
+import { downloadStatement } from "@/lib/statement";
 
 export type ChatMode = "deposit" | "withdraw" | "support";
 
@@ -687,7 +688,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const checksCard: Msg = { id: newId(), role: "bot", kind: "checks", items };
 
     // Save transaction straight to the unified cases table for staff review queue
-    await saveCaseToSupabase(read);
+        lastRead.current = read;
+    if (!(current === "withdraw" && items.every((i) => i.ok))) await saveCaseToSupabase(read);
 
     if (!items.every((i) => i.ok)) {
       respond(
@@ -773,11 +775,28 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (!value || typing) return;
     setInput("");
     if (stage === "name") return submitName(value);
-    if (!ctx.current.flow && !caseId.current) void saveCaseToSupabase(undefined, true, "support");
     if (value.includes("?")) return askAI(value);
     if (stage === "amount") return /\d/.test(value) ? submitCustom(value) : askAI(value);
     if (stage === "detail") return submitDetail(value);
     askAI(value);
+  };
+
+    const getStatement = async () => {
+    if (typing || !client.current) return;
+    push(me("Statement"));
+    const { data } = await supabase.rpc("client_get_statement", { _client_id: client.current.id });
+    if (!data?.length) {
+      respond([bot("I couldn't find any transactions on your account yet.")]);
+      return;
+    }
+    await downloadStatement({
+      title: "Account statement",
+      clientName: client.current.name,
+      rows: data,
+      filename: `Coinspace-statement-${client.current.name.replace(/\s+/g, "-")}.pdf`,
+      logoUrl: "/logo-light.jpeg",
+    });
+    respond([bot("Your statement has been downloaded. ✅")]);
   };
 
   const accountHelp = () => {
@@ -1016,6 +1035,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
                 <button className={chip} onClick={() => begin("deposit")}>Deposit</button>
                 <button className={chip} onClick={() => begin("withdraw")}>Withdraw</button>
                 <button className={chip} onClick={accountHelp}>Account help</button>
+                  <button className={chip} onClick={getStatement}>Statement</button>
               </div>
             )}
 
@@ -1122,6 +1142,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
             {stage === "ended" && (
               <div className="flex flex-wrap items-center gap-2">
+                <button className={chip} onClick={getStatement}>Statement</button>
                 <button className="rounded-full bg-[#f0b90b] px-4 py-2 text-sm font-bold text-black hover:brightness-95" onClick={() => begin("deposit")}>+ New deposit</button>
                 <button className="rounded-full border border-black bg-white px-4 py-2 text-sm font-bold text-black hover:bg-black hover:text-white" onClick={() => begin("withdraw")}>New withdrawal</button>
                 <button className="px-3 py-2 text-sm font-bold text-black hover:underline" onClick={onClose}>Close chat</button>
