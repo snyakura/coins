@@ -20,12 +20,13 @@ type Stage =
   | "proof"
   | "processing"
   | "payoutDetails"
-  | "ended";
+  | "name"
+  | "ended";;
 
 type CardRowData = { label: string; value: string; copy?: boolean };
 
 type Msg =
-  | { id: number; role: "bot" | "user"; kind: "text"; text: string; time: string }
+  | { id: number; role: "bot" | "user"; kind: "text"; text: string; time: string; staff?: boolean }
   | { id: number; role: "bot"; kind: "pay"; amount: number; gateway: PaymentGateway; destination: string }
   | {
       id: number;
@@ -115,6 +116,23 @@ const plain = (n: number) => `$${+n.toFixed(2)}`;
 const bot = (text: string): Msg => ({ id: newId(), role: "bot", kind: "text", text, time: now() });
 const me = (text: string): Msg => ({ id: newId(), role: "user", kind: "text", text, time: now() });
 
+const loadClient = (): { id: string; name: string; initials: string } | null => {
+  try { return JSON.parse(localStorage.getItem("cs_client") || "null"); } catch { return null; }
+};
+
+const toChatItem = (m: Msg): Record<string, unknown> | null => {
+  const at = new Date().toISOString();
+  switch (m.kind) {
+    case "text": return m.staff ? null : { from: m.role === "user" ? "client" : "bot", text: m.text, at };
+    case "pay": return { from: "pay", gateway: m.gateway, amount: m.amount, merchant: AGENT_NAME, code: "—", number: m.destination, reference: "—" };
+    case "send": return { from: "bot", text: `${m.title}\n` + m.rows.map((r) => `${r.label}: ${r.value}`).join("\n"), at };
+    case "read": return { from: "ai" };
+    case "checks": return { from: "bot", text: m.items.map((i) => `${i.ok ? "✓" : "✗"} ${i.text}`).join("\n"), at };
+    case "pill": return m.tone === "wait" ? { from: "checking" } : { from: "bot", text: `${m.label}${m.sub ? " — " + m.sub : ""}`, at };
+    default: return null; // uploads are sent separately with their image link
+  }
+};
+
 const chip = "rounded-full border border-black bg-white px-4 py-1.5 text-sm font-bold text-black transition-colors hover:bg-black hover:text-white";
 const textField = "h-12 min-w-0 flex-1 rounded-full bg-[#e9e9e5] px-5 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-black/10";
 
@@ -178,6 +196,43 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   const fileRef = useRef<HTMLInputElement>(null);
   const aiHistory = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
 
+    const client = useRef<{ id: string; name: string; initials: string } | null>(null);
+  const caseId = useRef<string | null>(null);
+  const refCode = useRef("");
+  const synced = useRef(0);
+  const chatStart = useRef(0);
+  const seenStaff = useRef(0);
+  const seenStatus = useRef("review");
+  const lastRead = useRef<ProofRead | null>(null);
+  const msgsRef = useRef<Msg[]>([]);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  const resetCase = () => {
+    caseId.current = null;
+    seenStaff.current = 0;
+    seenStatus.current = "review";
+    lastRead.current = null;
+    chatStart.current = msgsRef.current.length;
+  };
+
+  const appendChat = (id: string, item: object) => {
+    queue.current = queue.current
+      .then(() => supabase.rpc("client_append_chat", { _case_id: id, _item: item }))
+      .catch(() => {});
+  };
+
+  const uploadProof = async (file: File, name: string) => {
+    const id = caseId.current;
+    if (!id) return;
+    let url: string | undefined;
+    try {
+      const path = `${id}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
+      const { error } = await supabase.storage.from("receipts").upload(path, file, { contentType: file.type });
+      if (!error) url = supabase.storage.from("receipts").getPublicUrl(path).data.publicUrl;
+    } catch { /* ignore */ }
+    appendChat(id, { from: "client", text: "Uploaded payment proof", name, image_url: url, at: new Date().toISOString() });
+  };
+
   const later = (fn: () => void, ms: number) => {
     timers.current.push(window.setTimeout(fn, ms));
   };
@@ -200,67 +255,54 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     });
   };
 
-const saveCaseToSupabase = async (read?: ProofRead) => {
+  const saveCaseToSupabase = async (read?: ProofRead, early = false, kind?: "support") => {
     const c = ctx.current;
-    
-    // 1. Get or create a default test client cleanly
-    let clientId: string | null = null;
-    const { data: existingClients } = await supabase.from('clients').select('id').limit(1);
-    
-    if (existingClients && existingClients.length > 0) {
-      clientId = existingClients[0].id;
-    } else {
-      const { data: newClient, error: clientErr } = await supabase.from('clients').insert({
-        name: c.payoutName || 'Client User',
-        initials: 'CU',
-        phone: c.payoutNumber || '+263770000000',
-        joined_at: new Date().toISOString().split('T')[0]
-      }).select('id').single();
-
-      if (clientErr) {
-        console.error('Client creation error:', clientErr.message);
-        return;
-      }
-      clientId = newClient?.id;
+    const cl = client.current;
+    if (!cl) return;
+    if (read) lastRead.current = read;
+    const r = read ?? lastRead.current;
+    const first = !caseId.current;
+    if (first) {
+      caseId.current = crypto.randomUUID();
+      refCode.current = "CS-" + Math.random().toString(36).slice(2, 7).toUpperCase();
     }
+    const mismatch = !!r && r.amount !== null && Math.abs(r.amount - c.amount) >= 0.01;
+    const flag = kind === "support" ? "Needs a reply"
+      : early && !r ? "Awaiting proof"
+      : mismatch ? "Amount mismatch"
+      : c.amount > LARGE_PAYOUT ? "Over auto limit" : null;
+    const detail = flag === "Amount mismatch" ? `Proof shows $${r?.amount} but client requested $${c.amount}`
+      : flag === "Over auto limit" ? "Above auto-payout threshold — staff sign-off required"
+      : flag === "Awaiting proof" ? "Client is still completing the transaction"
+      : flag === "Needs a reply" ? "Client is asking for help" : null;
+    const backlog = first ? msgsRef.current.slice(chatStart.current).map(toChatItem).filter(Boolean) : null;
+    if (first) synced.current = msgsRef.current.length;
 
-    if (!clientId) return;
-
-    const flag = read && read.amount !== null && Math.abs(read.amount - c.amount) >= 0.01 
-      ? 'Amount mismatch' 
-      : c.amount > LARGE_PAYOUT ? 'Over auto limit' : null;
-
-    const aiReadJson = read ? {
-      amount: read.amount,
-      amount_mismatch: read.amount !== null && Math.abs(read.amount - c.amount) >= 0.01,
-      reference: read.reference || 'REF-' + Math.floor(Math.random() * 100000),
-      sender: read.sender || '+263 77 123 4567',
-      confidence: Math.round(read.confidence)
-    } : null;
-
-    // 2. Insert into cases table
-    const { error: caseErr } = await supabase.from('cases').insert({
-      client_id: clientId,
-      kind: c.flow,
-      amount: c.amount,
-      platform: c.gateway || c.asset || 'Coinspace',
-      reference: read?.reference || 'CS-' + Math.random().toString(36).substring(7).toUpperCase(),
-      status: flag ? 'review' : (AUTO_APPROVE ? 'approved' : 'review'),
-      flag: flag,
-      flag_tone: flag ? 'danger' : 'warn',
-      flag_detail: flag === 'Amount mismatch' ? `Proof shows $${read?.amount} but client requested $${c.amount}` : 'Above auto-payout threshold — staff sign-off required',
-      ai_read: aiReadJson,
-    });
-
-    if (caseErr) {
-      console.error('Supabase case insert error:', caseErr.message);
-    } else {
-      console.log('Transaction successfully recorded to cases queue!');
-    }
+    const p = queue.current.then(() =>
+      supabase.rpc("client_upsert_case", {
+        _case_id: caseId.current,
+        _client_id: cl.id,
+        _name: cl.name,
+        _phone: c.payoutNumber || "",
+        _kind: kind ?? (c.flow === "withdraw" ? "withdrawal" : "deposit"),
+        _amount: kind ? 0 : c.amount,
+        _platform: kind ? "Support" : c.gateway || c.asset || "Coinspace",
+        _reference: r?.reference || refCode.current,
+        _flag: flag,
+        _flag_tone: mismatch ? "danger" : "warn",
+        _flag_detail: detail,
+        _ai_read: r ? { amount: r.amount ?? 0, amount_mismatch: mismatch, reference: r.reference || "—", sender: r.sender || "—", confidence: Math.round(r.confidence) } : null,
+        _chat: backlog,
+      }),
+    );
+    queue.current = p.catch(() => {});
+    const res: any = await p;
+    if (res?.error) console.error("case sync:", res.error.message);
   };
 
   const startFlow = (next: Flow) => {
-    ctx.current = emptyCtx(next);
+        ctx.current = emptyCtx(next);
+    resetCase();
     setFlow(next);
     setStep(1);
     setStage("gateway");
@@ -278,6 +320,23 @@ const saveCaseToSupabase = async (read?: ProofRead) => {
     startFlow(next);
   };
 
+    const startMode = (m: ChatMode) => {
+    if (m === "support") {
+      setStage("menu");
+      respond([bot("Hi! I am the Coinspace assistant. How can I help you today?")]);
+    } else begin(m);
+  };
+
+  const submitName = (raw: string) => {
+    const name = raw.trim().replace(/\s+/g, " ");
+    if (name.length < 2 || typing) return;
+    const initials = name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+    client.current = { id: crypto.randomUUID(), name, initials };
+    try { localStorage.setItem("cs_client", JSON.stringify(client.current)); } catch { /* ignore */ }
+    push(me(name));
+    startMode(mode as ChatMode);
+  };
+
   useEffect(() => {
     clearTimers();
     setMessages([]);
@@ -293,10 +352,14 @@ const saveCaseToSupabase = async (read?: ProofRead) => {
     setPendingKind("");
     ctx.current = emptyCtx();
     aiHistory.current = [];
-    if (mode === "support") {
-      respond([bot("Hi! I am the Coinspace assistant. How can I help you today?")]);
+    msgsRef.current = [];
+    resetCase();
+    client.current = loadClient();
+    if (mode && !client.current) {
+      setStage("name");
+      respond([bot("Hi! Before we start, please tell us your full name.")]);
     } else if (mode) {
-      begin(mode);
+      startMode(mode);
     }
     return clearTimers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -305,6 +368,43 @@ const saveCaseToSupabase = async (read?: ProofRead) => {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
+
+
+    // send every new chat message to the staff dashboard
+  useEffect(() => {
+    msgsRef.current = messages;
+    const id = caseId.current;
+    if (!id) return;
+    const fresh = messages.slice(synced.current);
+    synced.current = messages.length;
+    fresh.map(toChatItem).forEach((item) => item && appendChat(id, item));
+  }, [messages]);
+
+  // pull staff replies + approve/reject decisions
+  useEffect(() => {
+    if (!mode) return;
+    const t = window.setInterval(async () => {
+      const id = caseId.current;
+      if (!id) return;
+      const { data } = await supabase.rpc("client_get_chat", { _case_id: id });
+      const row: any = Array.isArray(data) ? data[0] : data;
+      if (!row || id !== caseId.current) return;
+      const staff = ((row.chat ?? []) as { from: string; text: string }[]).filter((m) => m.from === "staff");
+      if (staff.length > seenStaff.current) {
+        const fresh = staff.slice(seenStaff.current);
+        seenStaff.current = staff.length;
+        push(...fresh.map((m) => ({ ...bot(`**Coinspace team:** ${m.text}`), staff: true }) as Msg));
+      }
+      if (row.status !== "review" && row.status !== seenStatus.current) {
+        seenStatus.current = row.status;
+        push({
+          ...bot(row.status === "approved" ? "✅ Your request has been approved by our team." : "❌ Your request was rejected. Reply here if you need help."),
+          staff: true,
+        } as Msg);
+      }
+    }, 3000);
+    return () => window.clearInterval(t);
+  }, [mode]);
 
   if (!mode) return null;
 
@@ -438,6 +538,7 @@ const saveCaseToSupabase = async (read?: ProofRead) => {
 
     ctx.current.fee = fee;
     ctx.current.netAmount = netAmount;
+        void saveCaseToSupabase(undefined, true);
 
     if (ctx.current.flow === "deposit") {
       const destination = destinationLabel();
@@ -552,6 +653,7 @@ const saveCaseToSupabase = async (read?: ProofRead) => {
     setTyping(true);
 
     const { amount, destination, flow: current } = ctx.current;
+        await uploadProof(file, name);
 
     let read: ProofRead;
     try {
@@ -670,6 +772,8 @@ const saveCaseToSupabase = async (read?: ProofRead) => {
     const value = input.trim();
     if (!value || typing) return;
     setInput("");
+    if (stage === "name") return submitName(value);
+    if (!ctx.current.flow && !caseId.current) void saveCaseToSupabase(undefined, true, "support");
     if (value.includes("?")) return askAI(value);
     if (stage === "amount") return /\d/.test(value) ? submitCustom(value) : askAI(value);
     if (stage === "detail") return submitDetail(value);
@@ -679,6 +783,7 @@ const saveCaseToSupabase = async (read?: ProofRead) => {
   const accountHelp = () => {
     if (typing) return;
     push(me("Account help"));
+        void saveCaseToSupabase(undefined, true, "support");
     setStage("ended");
     respond([bot("A Coinspace specialist will continue with you here.")]);
   };
