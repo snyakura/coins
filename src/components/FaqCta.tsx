@@ -2,6 +2,7 @@ import { ArrowRight, Plus, X } from "lucide-react";
 import { useId, useState, type MouseEvent } from "react";
 import { CoinspaceShell as _unused, useTransactionActions } from "@/components/CoinspaceShell";
 import { Button } from "@/components/ui/button";
+import { LINKS } from "@/lib/links";
 
 // ---- Edit the questions and answers here -------------------------------------------------
 const FAQS = [
@@ -94,7 +95,7 @@ function FaqSection() {
             <h3 className="text-xl font-extrabold leading-snug">Don&rsquo;t see the answer you need?</h3>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">That&rsquo;s ok. Just drop us a message and we will get back to you as soon as we can.</p>
             <Button asChild variant="dark" className="mt-6 hover:bg-primary hover:text-primary-foreground">
-              <a href="#contact" onClick={scrollToContact}>Contact us</a>
+              <a href={LINKS.whatsapp} target="_blank" rel="noopener noreferrer">Contact us</a>
             </Button>
           </aside>
         </div>

@@ -1,16 +1,18 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ArrowRight, Menu, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { ChevronRight, Home, LineChart, Menu, MessageCircle, Newspaper, Sparkles, UserPlus, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
-import { SiteFooter } from "@/components/SiteFooter";
+import { BrandIcon, SiteFooter, SOCIALS } from "@/components/SiteFooter";
 import { TransactionChat, type ChatMode } from "@/components/TransactionChat";
 import { ScrollProgress, useScrollMotion } from "@/lib/scrollMotion";
+import { LINKS } from "@/lib/links";
 
 const navigation = [
-  { label: "Home", to: "/" as const },
-  { label: "AI Analyser", to: "/ai-analyser" as const },
-  { label: "Blog", to: "/blog" as const },
-  { label: "Live Market", to: "/live-market" as const },
+  { label: "Home", to: "/" as const, icon: Home },
+  { label: "Accounts", to: "/accounts" as const, icon: UserPlus },
+  { label: "AI Analyser", to: "/ai-analyser" as const, icon: Sparkles },
+  { label: "Blog", to: "/blog" as const, icon: Newspaper },
+  { label: "Live Market", to: "/live-market" as const, icon: LineChart },
 ];
 
 /** A page counts as selected on its own address and on anything under it (e.g. /blog/my-post). */
@@ -56,15 +58,6 @@ const footerLogoSize = "h-10 sm:h-11 lg:h-12";
 
 // Black "Contact us" button that turns yellow on hover
 const contactButton = "hover:bg-primary hover:text-primary-foreground";
-
-/** Scrolls to the contact details in the footer (the footer is on every page). */
-function goToContact(event: MouseEvent<HTMLAnchorElement>) {
-  const target = document.getElementById("contact");
-  if (!target) return; // no footer found: the plain #contact link still works
-  event.preventDefault();
-  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  target.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
-}
 
 export function Logo({ size = headerLogoSize }: { size?: string }) {
   const [logo, setLogo] = useState<LogoData | "failed" | null>(cachedLogo);
@@ -170,12 +163,7 @@ function reveal(open: boolean, order: number) {
   };
 }
 
-/**
- * Phone menu: a clean full-screen panel in the site's own light background.
- * The logo and close button sit exactly where they do in the header. Large links with hairline
- * dividers glide in one after another. Closes with the X button, the Escape key,
- * or by choosing a link.
- */
+/** Phone menu: a side panel that slides in from the left. Closes with X, Escape, the dimmed area, or a link. */
 function MobileMenu({
   open,
   pathname,
@@ -204,7 +192,7 @@ function MobileMenu({
     wasOpen.current = true;
     closeRef.current?.focus();
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden"; // the page behind doesn't scroll while the menu is open
+    document.body.style.overflow = "hidden";
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") return onClose();
@@ -228,99 +216,112 @@ function MobileMenu({
     };
   }, [open, onClose, returnFocusRef]);
 
-  const eyebrow = reveal(open, 0);
-  const buttons = reveal(open, navigation.length + 1);
+  const bottom = reveal(open, navigation.length + 1);
 
   return (
     <div
       id="mobile-menu"
-      ref={panelRef}
       role="dialog"
       aria-modal="true"
       aria-label="Menu"
       inert={!open}
-      className={`fixed inset-0 z-50 flex flex-col overflow-hidden bg-background transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:hidden ${open ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"}`}
+      className={`fixed inset-0 z-50 md:hidden ${open ? "" : "pointer-events-none"}`}
     >
-      {/* a very soft yellow glow in the corner */}
-      <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/20 blur-3xl" aria-hidden="true" />
-
-      {/* same height and padding as the header, so the logo doesn't move */}
-      <div className="relative flex h-[4.5rem] shrink-0 items-center justify-between px-5 sm:h-20 sm:px-8">
-        <div onClick={onClose}>
-          <Logo />
-        </div>
-        <Button
-          ref={closeRef}
-          variant="ghost"
-          size="icon"
-          className="rounded-full border border-border/60 bg-background/50 transition-transform duration-300 hover:rotate-90 active:scale-90 motion-reduce:transform-none"
-          onClick={onClose}
-          aria-label="Close menu"
-        >
-          <X size={21} />
-        </Button>
-      </div>
-
-      <p
-        className={`relative px-6 pb-3 pt-8 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:px-8 ${eyebrow.className}`}
-        style={eyebrow.style}
-      >
-        Menu
-      </p>
-
-      <nav className="relative flex-1 overflow-y-auto px-6 sm:px-8" aria-label="Mobile navigation">
-        <ul className="border-t border-border/70">
-          {navigation.map((item, index) => {
-            const active = isActivePage(pathname, item.to);
-            const motion = reveal(open, index + 1);
-            return (
-              <li key={item.to} className={motion.className} style={motion.style}>
-                <Link
-                  to={item.to}
-                  onClick={onClose}
-                  aria-current={active ? "page" : undefined}
-                  className={`group flex items-center justify-between gap-4 border-b border-border/70 py-5 transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${active ? "text-foreground" : "text-foreground/60 hover:text-foreground"}`}
-                >
-                  <span className="flex items-center gap-3">
-                    {active && <span className="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_0_4px_rgba(255,203,5,0.25)]" aria-hidden="true" />}
-                    <span className={`text-[26px] leading-none tracking-tight ${active ? "font-bold" : "font-medium"}`}>{item.label}</span>
-                  </span>
-                  <ArrowRight
-                    size={20}
-                    strokeWidth={1.75}
-                    className="shrink-0 text-foreground/30 transition-all duration-300 group-hover:translate-x-1 group-hover:text-foreground motion-reduce:transform-none"
-                    aria-hidden="true"
-                  />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      {/* dimmed page behind the panel */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Close menu"
+        onClick={onClose}
+        className={`no-lift absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 motion-reduce:transition-none ${open ? "opacity-100" : "opacity-0"}`}
+      />
 
       <div
-        className={`relative grid gap-3 px-6 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-5 sm:px-8 ${buttons.className}`}
-        style={buttons.style}
+        ref={panelRef}
+                className={`absolute inset-y-0 right-0 flex w-[86%] max-w-[22rem] flex-col overflow-hidden rounded-l-3xl bg-card shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${open ? "translate-x-0" : "translate-x-full"}`}
       >
-        <div className="grid grid-cols-2 gap-3">
-          <Button variant="outline" className="hover:border-primary hover:bg-primary" onClick={() => onChat("deposit")}>
-            Deposit
-          </Button>
-          <Button variant="outline" className="hover:border-primary hover:bg-primary" onClick={() => onChat("withdraw")}>
-            Withdraw
+        <div className="flex h-[4.5rem] shrink-0 items-center justify-between px-5">
+          <div onClick={onClose}>
+            <Logo />
+          </div>
+          <Button
+            ref={closeRef}
+            variant="ghost"
+            size="icon"
+            className="rounded-full border border-border/60 bg-background/50 hover:rotate-90"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <X size={20} />
           </Button>
         </div>
-        <Button asChild variant="dark" className={`w-full ${contactButton}`}>
-          <a
-            href="#contact"
-            onClick={(event) => {
-              onClose();
-              goToContact(event);
-            }}
-          >
-            Contact us
-          </a>
-        </Button>
+
+        <nav className="flex-1 overflow-y-auto px-3 pt-3" aria-label="Mobile navigation">
+          <ul className="grid gap-1.5">
+            {navigation.map((item, index) => {
+              const active = isActivePage(pathname, item.to);
+              const motion = reveal(open, index);
+              const Icon = item.icon;
+              return (
+                <li key={item.to} className={motion.className} style={motion.style}>
+                  <Link
+                    to={item.to}
+                    onClick={onClose}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex h-14 items-center gap-3 rounded-2xl px-4 text-base transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground ${
+                      active ? "bg-muted font-bold text-foreground" : "font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="size-[22px] shrink-0" strokeWidth={1.75} />
+                    <span className="flex-1">{item.label}</span>
+                    {active ? (
+                      <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
+                    ) : (
+                      <ChevronRight className="size-4 text-foreground/25" aria-hidden="true" />
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        <div
+          className={`grid gap-3 border-t border-border/70 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 ${bottom.className}`}
+          style={bottom.style}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="outline" onClick={() => onChat("deposit")}>Deposit</Button>
+            <Button variant="outline" onClick={() => onChat("withdraw")}>Withdraw</Button>
+          </div>
+          <Button asChild variant="dark" className="w-full">
+            <a href={LINKS.whatsapp} target="_blank" rel="noopener noreferrer" onClick={onClose}>
+              <MessageCircle size={17} /> Contact us
+            </a>
+          </Button>
+          <div className="flex items-center justify-center gap-3">
+            {SOCIALS.map(({ label, href, icon }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={label}
+                className="grid size-11 place-items-center rounded-full border border-border transition-colors hover:border-primary hover:bg-primary"
+              >
+                <BrandIcon name={icon} />
+              </a>
+            ))}
+            <a
+              href={LINKS.tfmChannel}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-11 items-center gap-2 rounded-full border border-border px-4 text-xs font-semibold transition-colors hover:border-primary hover:bg-primary"
+            >
+              <BrandIcon name="whatsapp" /> Forex Mafia channel
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -328,7 +329,7 @@ function MobileMenu({
 
 export function CoinspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-    useScrollMotion(pathname);
+  useScrollMotion(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [chat, setChat] = useState<ChatMode | null>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -363,7 +364,7 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-            <ScrollProgress />
+      <ScrollProgress />
       <header
         className={`sticky top-0 z-30 border-b backdrop-blur-xl backdrop-saturate-150 transition-[background-color,box-shadow,border-color] duration-300 motion-reduce:transition-none ${
           scrolled
@@ -381,7 +382,7 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
               size="sm"
               className={`hidden px-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none md:inline-flex ${contactButton}`}
             >
-              <a href="#contact" onClick={goToContact}>Contact us</a>
+              <a href={LINKS.whatsapp} target="_blank" rel="noopener noreferrer">Contact us</a>
             </Button>
             <Button
               ref={menuButtonRef}

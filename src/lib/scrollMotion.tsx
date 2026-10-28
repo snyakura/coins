@@ -9,7 +9,7 @@ export function useScrollMotion(key: string) {
       (entries) => {
         for (const e of entries) {
           if (!e.isIntersecting) continue;
-          (e.target as HTMLElement).dataset.state = "shown";
+          e.target.setAttribute("data-state", "shown");
           io.unobserve(e.target);
         }
       },
@@ -17,7 +17,7 @@ export function useScrollMotion(key: string) {
     );
 
     const arm = (el: HTMLElement, delay = 0) => {
-      const state = el.dataset.state;
+      const state = el.getAttribute("data-state");
       if (state === "shown") return;
       if (state === "hidden") { io.observe(el); return; }
       if (el.classList.contains("reveal") || el.hasAttribute("data-no-reveal")) return;
@@ -25,7 +25,7 @@ export function useScrollMotion(key: string) {
       if (el.getBoundingClientRect().top < window.innerHeight * 0.92) return; // already on screen
       el.classList.add("reveal");
       el.style.setProperty("--d", `${delay}ms`);
-      el.dataset.state = "hidden";
+      el.setAttribute("data-state", "hidden");
       io.observe(el);
     };
 
@@ -47,7 +47,7 @@ export function useScrollMotion(key: string) {
     const parallax = () => {
       raf = 0;
       document.querySelectorAll<HTMLElement>("[data-parallax]").forEach((el) => {
-        const speed = Number(el.dataset.parallax) || 0;
+        const speed = Number(el.getAttribute("data-parallax")) || 0;
         el.style.translate = `0 ${Math.round(window.scrollY * speed)}px`;
       });
     };
@@ -86,4 +86,4 @@ export function ScrollProgress() {
     };
   }, []);
   return <div ref={ref} aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-[3px] origin-left bg-primary" style={{ transform: "scaleX(0)" }} />;
-}   
+}

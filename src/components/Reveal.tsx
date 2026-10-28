@@ -8,11 +8,11 @@ export function Reveal({ children, delay = 0, className = "" }: { children: Reac
     const el = ref.current;
     if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     if (el.getBoundingClientRect().top < window.innerHeight * 0.9) return; // already on screen, leave it visible
-    el.dataset.state = "hidden";
+    el.setAttribute("data-state", "hidden");
     const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.dataset.state = "shown";
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          el.setAttribute("data-state", "shown");
           io.disconnect();
         }
       },
