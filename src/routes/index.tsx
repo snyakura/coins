@@ -4,6 +4,7 @@ import { BrokerMarquee } from "@/components/BrokerMarquee";
 import { CoinspaceShell, useTransactionActions } from "@/components/CoinspaceShell";
 import { FaqCta } from "@/components/FaqCta";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/Reveal";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -43,28 +44,28 @@ function HomePage() {
         <div className="page-container grid items-start gap-8 py-10 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
           {/* Text block. xl:pt-28 lowers it on large screens only. */}
           <div className="xl:pt-28">
-            <span className="block text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
+            <span className="anim-rise block text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
 
             {/* Bigger and bolder on phones. The size scales with the screen so "Buy and sell" always fits on one line. */}
-            <h1 className="mt-4 max-w-[800px] text-[clamp(2.6rem,12.5vw,3.5rem)] font-black leading-[1.02] [-webkit-text-stroke:2px_currentColor] sm:mt-5 sm:whitespace-nowrap sm:text-6xl sm:font-extrabold sm:leading-[.98] sm:[-webkit-text-stroke:1.5px_currentColor] lg:text-7xl">
+            <h1 className="anim-rise d1 mt-4 max-w-[800px] text-[clamp(2.6rem,12.5vw,3.5rem)] font-black leading-[1.02] [-webkit-text-stroke:2px_currentColor] sm:mt-5 sm:whitespace-nowrap sm:text-6xl sm:font-extrabold sm:leading-[.98] sm:[-webkit-text-stroke:1.5px_currentColor] lg:text-7xl">
               Buy and sell<br />crypto Fast.
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
+            <p className="anim-rise d2 mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
               Deposit, trade and withdraw. Coinspace never holds your funds.
             </p>
 
             {/* Buttons: stacked and full width on phones with room around them, side by side from tablets up */}
-           <div className="mt-8 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
+           <div className="anim-rise d3 mt-8 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
   <Button
     variant="primary"
-    className="group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-foreground hover:text-white hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
+    className="shine anim-ring group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-foreground hover:text-white hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
     onClick={() => openChat("deposit")}
   >
     Deposit <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transform-none" />
   </Button>
   <Button
     variant="dark"
-    className="group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
+    className="shine group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
     onClick={() => openChat("withdraw")}
   >
     Withdraw <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transform-none" />
@@ -72,7 +73,7 @@ function HomePage() {
 </div>
 
             {/* Benefits: 2 x 2 on phones, three in a row with dividers from tablets up */}
-            <ul className="mt-8 grid grid-cols-2 sm:mt-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-4">
+            <ul className="anim-rise d4 mt-8 grid grid-cols-2 sm:mt-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-4">
               {benefits.map(({ icon: Icon, title, text, extra }) => (
                 <li key={title} className={`flex items-center gap-3 border-border py-4 sm:py-0 ${extra}`}>
                   <Icon className="size-6 shrink-0" />
@@ -87,14 +88,17 @@ function HomePage() {
 
           {/* Phone image: only shown when it fits on the right, never below the text */}
           <div className="relative -mt-12 hidden items-center justify-end xl:flex">
-  <img
-    src="/phone-hero-3d.svg"
-    alt="Coinspace app preview"
-    className="h-auto w-[112%] max-w-none cursor-pointer select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-4 hover:-rotate-2 hover:scale-[1.04] hover:drop-shadow-[0_50px_55px_rgba(0,0,0,0.28)] active:scale-[1.01] motion-reduce:transform-none motion-reduce:transition-none xl:translate-x-20"
-    loading="eager"
-    decoding="async"
-  />
-</div>
+            <div className="anim-glow absolute right-10 top-1/2 size-[420px]  -translate-y-1/2 rounded-full bg-primary/40 blur-3xl" aria-hidden data-parallax="-0.08"/>
+            <div data-parallax="0.05" className="anim-float relative w-full">
+              <img
+                src="/phone-hero-3d.svg"
+                alt="Coinspace app preview"
+                className="h-auto w-[112%] max-w-none cursor-pointer select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-4 hover:-rotate-2 hover:scale-[1.04] hover:drop-shadow-[0_50px_55px_rgba(0,0,0,0.28)] active:scale-[1.01] motion-reduce:transform-none motion-reduce:transition-none xl:translate-x-20"
+                loading="eager"
+                decoding="async"
+              />
+            </div>
+          </div>
         </div>
       </section>
 

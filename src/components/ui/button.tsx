@@ -4,14 +4,14 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  "group relative inline-flex shrink-0 items-center justify-center gap-2 overflow-hidden font-semibold shine transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-primary-foreground hover:bg-primary/85",
-        dark: "bg-foreground text-background hover:bg-foreground/85",
-        outline: "border border-border bg-background text-foreground hover:bg-muted",
-        ghost: "text-foreground hover:bg-muted",
+        primary: "bg-primary text-primary-foreground hover:bg-foreground hover:text-background",
+        dark: "bg-foreground text-background hover:bg-primary hover:text-primary-foreground",
+        outline: "border border-border bg-background text-foreground hover:border-foreground hover:bg-foreground hover:text-background",
+        ghost: "text-foreground hover:bg-muted hover:shadow-none",
         chat: "bg-chat text-chat-foreground hover:bg-chat/90",
       },
       size: {

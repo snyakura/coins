@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNo
 import { Button } from "@/components/ui/button";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TransactionChat, type ChatMode } from "@/components/TransactionChat";
+import { ScrollProgress, useScrollMotion } from "@/lib/scrollMotion";
 
 const navigation = [
   { label: "Home", to: "/" as const },
@@ -327,6 +328,7 @@ function MobileMenu({
 
 export function CoinspaceShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+    useScrollMotion(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [chat, setChat] = useState<ChatMode | null>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -361,6 +363,7 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+            <ScrollProgress />
       <header
         className={`sticky top-0 z-30 border-b backdrop-blur-xl backdrop-saturate-150 transition-[background-color,box-shadow,border-color] duration-300 motion-reduce:transition-none ${
           scrolled
