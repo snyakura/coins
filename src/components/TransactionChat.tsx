@@ -1,8 +1,8 @@
 import { Check, Copy, Image as ImageIcon, Send, X, Zap } from "lucide-react";
+import jsQR from "jsqr";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { chatWithAI, prepareImage, readProof, type ProofRead } from "@/lib/ai-client";
 import { supabase } from "@/lib/supabase";
-import { downloadStatement } from "@/lib/statement";
 
 export type ChatMode = "deposit" | "withdraw" | "support";
 
@@ -22,7 +22,9 @@ type Stage =
   | "processing"
   | "payoutDetails"
   | "name"
-  | "ended";;
+  | "live"
+  | "statement"
+  | "ended";
 
 type CardRowData = { label: string; value: string; copy?: boolean };
 
@@ -117,10 +119,14 @@ const plain = (n: number) => `$${+n.toFixed(2)}`;
 const bot = (text: string): Msg => ({ id: newId(), role: "bot", kind: "text", text, time: now() });
 const me = (text: string): Msg => ({ id: newId(), role: "user", kind: "text", text, time: now() });
 
+const DEPOSIT_FEE = 0.08; // 8% on every deposit
+const WELTRADE_AGENT = "The Forex Mafia"; // what clients search for on Weltrade
+
 const loadClient = (): { id: string; name: string; initials: string } | null => {
   try { return JSON.parse(localStorage.getItem("cs_client") || "null"); } catch { return null; }
 };
 
+/** What the staff dashboard stores for each message in the chat */
 const toChatItem = (m: Msg): Record<string, unknown> | null => {
   const at = new Date().toISOString();
   switch (m.kind) {
@@ -133,6 +139,21 @@ const toChatItem = (m: Msg): Record<string, unknown> | null => {
     default: return null; // uploads are sent separately with their image link
   }
 };
+
+/** Reads a QR code image and returns the text inside it */
+async function decodeQr(file: File): Promise<string | null> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const g = canvas.getContext("2d")!;
+  g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const img = g.getImageData(0, 0, canvas.width, canvas.height);
+  return jsQR(img.data, img.width, img.height)?.data ?? null;
+}
+
+const TRC20 = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 
 const chip = "rounded-full border border-black bg-white px-4 py-1.5 text-sm font-bold text-black transition-colors hover:bg-black hover:text-white";
 const textField = "h-12 min-w-0 flex-1 rounded-full bg-[#e9e9e5] px-5 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-black/10";
@@ -197,23 +218,31 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   const fileRef = useRef<HTMLInputElement>(null);
   const aiHistory = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
 
-    const client = useRef<{ id: string; name: string; initials: string } | null>(null);
+  const client = useRef<{ id: string; name: string; initials: string } | null>(null);
   const caseId = useRef<string | null>(null);
+  const caseKind = useRef<"deposit" | "withdrawal" | "support">("deposit");
   const refCode = useRef("");
   const synced = useRef(0);
   const chatStart = useRef(0);
-  const seenStaff = useRef(0);
+  const seenIds = useRef(new Set<string>());
   const seenStatus = useRef("review");
   const lastRead = useRef<ProofRead | null>(null);
   const msgsRef = useRef<Msg[]>([]);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const history = useRef<{ stage: Stage; step: number; ctx: Ctx; len: number }[]>([]);
+  const qrRef = useRef<HTMLInputElement>(null);
+  const proofFile = useRef<{ file: File; name: string } | null>(null);
+  const [liveCase, setLiveCase] = useState<string | null>(null);
+  const [proofFailed, setProofFailed] = useState(false);
+  const [backable, setBackable] = useState(false);
 
   const resetCase = () => {
     caseId.current = null;
-    seenStaff.current = 0;
+    seenIds.current = new Set();
     seenStatus.current = "review";
     lastRead.current = null;
     chatStart.current = msgsRef.current.length;
+    setLiveCase(null);
   };
 
   const appendChat = (id: string, item: object) => {
@@ -232,6 +261,32 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       if (!error) url = supabase.storage.from("receipts").getPublicUrl(path).data.publicUrl;
     } catch { /* ignore */ }
     appendChat(id, { from: "client", text: "Uploaded payment proof", name, image_url: url, at: new Date().toISOString() });
+    proofFile.current = null;
+  };
+
+  /** Remember where the client is, so "Back" can return here */
+  const checkpoint = () => {
+    history.current.push({ stage, step, ctx: { ...ctx.current }, len: msgsRef.current.length });
+    setBackable(true);
+  };
+
+  const goBack = () => {
+    if (typing) return;
+    const snap = history.current.pop();
+    if (!snap) return;
+    setBackable(history.current.length > 0);
+    clearTimers();
+    ctx.current = { ...snap.ctx };
+    msgsRef.current = msgsRef.current.slice(0, snap.len);
+    setMessages((m) => m.slice(0, snap.len));
+    setStage(snap.stage);
+    setStep(snap.step);
+    setFlow(snap.ctx.flow);
+    setPendingKind(snap.ctx.pending);
+    setDetailInput("");
+    setCustom("");
+    setInput("");
+    setProofFailed(false);
   };
 
   const later = (fn: () => void, ms: number) => {
@@ -256,7 +311,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     });
   };
 
-  const saveCaseToSupabase = async (read?: ProofRead, early = false, kind?: "support") => {
+  const saveCaseToSupabase = async (read?: ProofRead, early = false, kind?: "support" | "statement") => {
     const c = ctx.current;
     const cl = client.current;
     if (!cl) return;
@@ -266,16 +321,20 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (first) {
       caseId.current = crypto.randomUUID();
       refCode.current = "CS-" + Math.random().toString(36).slice(2, 7).toUpperCase();
+      caseKind.current = kind ? "support" : c.flow === "withdraw" ? "withdrawal" : "deposit";
+      setLiveCase(caseId.current);
     }
     const mismatch = !!r && r.amount !== null && Math.abs(r.amount - c.amount) >= 0.01;
-    const flag = kind === "support" ? "Needs a reply"
+    const flag = kind === "statement" ? "Statement requested"
+      : kind === "support" ? "Live chat"
       : early && !r ? "Awaiting proof"
       : mismatch ? "Amount mismatch"
       : c.amount > LARGE_PAYOUT ? "Over auto limit" : null;
-    const detail = flag === "Amount mismatch" ? `Proof shows $${r?.amount} but client requested $${c.amount}`
+    const detail = flag === "Statement requested" ? `Send statement to WhatsApp ${c.payoutNumber}`
+      : flag === "Live chat" ? "Client is waiting for a reply"
+      : flag === "Amount mismatch" ? `Proof shows $${r?.amount} but client requested $${c.amount}`
       : flag === "Over auto limit" ? "Above auto-payout threshold — staff sign-off required"
-      : flag === "Awaiting proof" ? "Client is still completing the transaction"
-      : flag === "Needs a reply" ? "Client is asking for help" : null;
+      : flag === "Awaiting proof" ? "Client is still completing the transaction" : null;
     const backlog = first ? msgsRef.current.slice(chatStart.current).map(toChatItem).filter(Boolean) : null;
     if (first) synced.current = msgsRef.current.length;
 
@@ -285,12 +344,12 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         _client_id: cl.id,
         _name: cl.name,
         _phone: c.payoutNumber || "",
-        _kind: kind ?? (c.flow === "withdraw" ? "withdrawal" : "deposit"),
+        _kind: kind ? "support" : c.flow === "withdraw" ? "withdrawal" : "deposit",
         _amount: kind ? 0 : c.amount,
-        _platform: kind ? "Support" : c.gateway || c.asset || "Coinspace",
+        _platform: kind === "statement" ? "Statement" : kind ? "Support" : c.gateway || c.asset || "Coinspace",
         _reference: r?.reference || refCode.current,
         _flag: flag,
-        _flag_tone: mismatch ? "danger" : "warn",
+        _flag_tone: mismatch || kind === "support" ? "danger" : "warn",
         _flag_detail: detail,
         _ai_read: r ? { amount: r.amount ?? 0, amount_mismatch: mismatch, reference: r.reference || "—", sender: r.sender || "—", confidence: Math.round(r.confidence) } : null,
         _chat: backlog,
@@ -302,8 +361,9 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   };
 
   const startFlow = (next: Flow) => {
-        ctx.current = emptyCtx(next);
+    ctx.current = emptyCtx(next);
     resetCase();
+    setProofFailed(false);
     setFlow(next);
     setStep(1);
     setStage("gateway");
@@ -316,16 +376,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ]);
   };
 
-  const begin = (next: Flow) => {
-    push(me(`I want to ${next}`));
-    startFlow(next);
-  };
-
-    const startMode = (m: ChatMode) => {
+  const startMode = (m: ChatMode) => {
     if (m === "support") {
       setStage("menu");
       respond([bot("Hi! I am the Coinspace assistant. How can I help you today?")]);
-    } else begin(m);
+    } else begin(m, false);
   };
 
   const submitName = (raw: string) => {
@@ -336,6 +391,12 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     try { localStorage.setItem("cs_client", JSON.stringify(client.current)); } catch { /* ignore */ }
     push(me(name));
     startMode(mode as ChatMode);
+  };
+
+  const begin = (next: Flow, record = true) => {
+    if (record) checkpoint();
+    push(me(`I want to ${next}`));
+    startFlow(next);
   };
 
   useEffect(() => {
@@ -354,11 +415,14 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ctx.current = emptyCtx();
     aiHistory.current = [];
     msgsRef.current = [];
+    history.current = [];
+    setBackable(false);
+    setProofFailed(false);
     resetCase();
     client.current = loadClient();
     if (mode && !client.current) {
       setStage("name");
-      respond([bot("Hi! Before we start, please tell us your full name.")]);
+      respond([bot("Hi! Before we start, please tell us your full name.\n\nBy continuing you agree to our Terms and Privacy Policy (links at the bottom of the page).")]);
     } else if (mode) {
       startMode(mode);
     }
@@ -370,8 +434,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
 
-
-    // send every new chat message to the staff dashboard
+  // send every new chat message to the staff dashboard
   useEffect(() => {
     msgsRef.current = messages;
     const id = caseId.current;
@@ -381,36 +444,49 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     fresh.map(toChatItem).forEach((item) => item && appendChat(id, item));
   }, [messages]);
 
-  // pull staff replies + approve/reject decisions
+  // messages from staff arrive instantly (live channel) with a slow check as a safety net
   useEffect(() => {
-    if (!mode) return;
+    if (!liveCase) return;
+    const showStaff = (m: { id?: string; at?: string; text?: string }) => {
+      const key = m.id ?? m.at ?? m.text ?? "";
+      if (!m.text || seenIds.current.has(key)) return;
+      seenIds.current.add(key);
+      setMessages((cur) => [...cur, { ...bot(`**Coinspace team:** ${m.text}`), staff: true } as Msg]);
+    };
+    const showStatus = (status: string) => {
+      if (status === "review" || status === seenStatus.current) return;
+      seenStatus.current = status;
+      const text = caseKind.current === "support"
+        ? "This chat was closed by our team. You can start a new one any time."
+        : status === "approved" ? "✅ Your request has been approved by our team." : "❌ Your request was rejected. Tap “Talk to staff” if you need help.";
+      setMessages((cur) => [...cur, { ...bot(text), staff: true } as Msg]);
+    };
+
+    const channel = supabase
+      .channel(`case:${liveCase}`)
+      .on("broadcast", { event: "staff" }, ({ payload }) => showStaff(payload as { id?: string; text?: string }))
+      .on("broadcast", { event: "status" }, ({ payload }) => showStatus(String((payload as { status?: string }).status ?? "")))
+      .subscribe();
+
     const t = window.setInterval(async () => {
-      const id = caseId.current;
-      if (!id) return;
-      const { data } = await supabase.rpc("client_get_chat", { _case_id: id });
+      const { data } = await supabase.rpc("client_get_chat", { _case_id: liveCase });
       const row: any = Array.isArray(data) ? data[0] : data;
-      if (!row || id !== caseId.current) return;
-      const staff = ((row.chat ?? []) as { from: string; text: string }[]).filter((m) => m.from === "staff");
-      if (staff.length > seenStaff.current) {
-        const fresh = staff.slice(seenStaff.current);
-        seenStaff.current = staff.length;
-        push(...fresh.map((m) => ({ ...bot(`**Coinspace team:** ${m.text}`), staff: true }) as Msg));
-      }
-      if (row.status !== "review" && row.status !== seenStatus.current) {
-        seenStatus.current = row.status;
-        push({
-          ...bot(row.status === "approved" ? "✅ Your request has been approved by our team." : "❌ Your request was rejected. Reply here if you need help."),
-          staff: true,
-        } as Msg);
-      }
-    }, 3000);
-    return () => window.clearInterval(t);
-  }, [mode]);
+      if (!row) return;
+      ((row.chat ?? []) as { from: string; id?: string; at?: string; text?: string }[]).filter((m) => m.from === "staff").forEach(showStaff);
+      showStatus(row.status);
+    }, 8000);
+
+    return () => {
+      window.clearInterval(t);
+      supabase.removeChannel(channel);
+    };
+  }, [liveCase]);
 
   if (!mode) return null;
 
   const pickGateway = (gateway: PaymentGateway, label: string) => {
     if (typing) return;
+    checkpoint();
     push(me(label));
     ctx.current.gateway = gateway;
     setStage("asset");
@@ -444,6 +520,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
   const pickAsset = (asset: Asset, label: string) => {
     if (typing) return;
+    checkpoint();
     push(me(label));
     ctx.current.asset = asset;
     const deposit = ctx.current.flow === "deposit";
@@ -474,6 +551,12 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const value = raw.trim();
     if (!value) return;
     setDetailInput("");
+    if (ctx.current.pending === "address" && !TRC20.test(value)) {
+      push(me(value));
+      respond([bot("That doesn't look like a TRC20 address (it starts with T and is 34 characters). Please check it and paste it again, or upload the QR code.")]);
+      return;
+    }
+    checkpoint();
     push(me(value));
     ctx.current.detail = value;
     ctx.current.pending = "";
@@ -506,14 +589,15 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
     if (asset === "WELTRADE" || asset === "DERIV") {
       const name = asset === "WELTRADE" ? "Weltrade" : "Deriv";
+      const agent = asset === "WELTRADE" ? WELTRADE_AGENT : AGENT_NAME;
       return {
         ...base,
         title: `Deposit via ${name}`,
-        rows: [{ label: "Search for", value: AGENT_NAME, copy: true }],
+        rows: [{ label: "Search for", value: agent, copy: true }],
         steps: [
           `Log in to your ${name} account`,
           asset === "DERIV" ? "Go to Cashier → Deposit → Payment agents" : "Open the Deposit section",
-          `Search for “${AGENT_NAME}”`,
+          `Search for “${agent}”`,
           `Enter ${money(amount)} and confirm the deposit`,
           "Take a screenshot of the confirmation",
         ],
@@ -530,16 +614,16 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
   const chooseAmount = (amount: number) => {
     if (typing) return;
+    checkpoint();
     push(me(plain(amount)));
     ctx.current.amount = amount;
 
     const isWithdraw = ctx.current.flow === "withdraw";
-    const fee = isWithdraw && amount >= 1000 ? amount * 0.05 : 0;
+    const fee = isWithdraw ? (amount >= 1000 ? amount * 0.05 : 0) : amount * DEPOSIT_FEE;
     const netAmount = amount - fee;
 
     ctx.current.fee = fee;
     ctx.current.netAmount = netAmount;
-        void saveCaseToSupabase(undefined, true);
 
     if (ctx.current.flow === "deposit") {
       const destination = destinationLabel();
@@ -547,6 +631,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       setStage("pay");
       setStep(3);
       respond([
+        bot(`Deposit: **${money(amount)}**\nFee (${DEPOSIT_FEE * 100}%): −${money(fee)}\nAmount credited to your account: **${money(netAmount)}**`),
         bot(`Please send **${money(amount)}** using your selected gateway (${ctx.current.gateway}).`),
         { id: newId(), role: "bot", kind: "pay", amount, gateway: ctx.current.gateway as PaymentGateway, destination },
       ]);
@@ -584,6 +669,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
   const paid = () => {
     if (typing || stage !== "pay") return;
+    checkpoint();
     push(me("I've paid"));
     setStage("proof");
     setStep(4);
@@ -592,6 +678,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
   const sent = () => {
     if (typing || stage !== "send") return;
+    checkpoint();
     push(me("I've sent it"));
     setStage("proof");
     setStep(4);
@@ -622,7 +709,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     }
   };
 
-  const runChecks = (read: ProofRead) => {
+  const runChecks = (read: ProofRead, duplicateRef = false) => {
     const { amount, flow: current } = ctx.current;
     const items: { ok: boolean; text: string }[] = [];
 
@@ -641,6 +728,10 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const statusOk = read.status === "success";
     items.push({ ok: statusOk, text: statusOk ? "Payment shows as successful" : "Payment doesn't show as successful" });
     items.push({ ok: amount >= MIN_AMOUNT && (current === "withdraw" || amount <= MAX_DEPOSIT), text: "Within limits" });
+    if (read.suspicious) {
+      items.push({ ok: false, text: `Receipt may be edited or fake${read.signals.length ? ": " + read.signals.slice(0, 2).join(", ") : ""}` });
+    }
+    if (duplicateRef) items.push({ ok: false, text: "This payment reference was already used on another request" });
     return items;
   };
 
@@ -654,7 +745,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setTyping(true);
 
     const { amount, destination, flow: current } = ctx.current;
-        await uploadProof(file, name);
+    setProofFailed(false);
 
     let read: ProofRead;
     try {
@@ -668,14 +759,20 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setTyping(false);
 
     if (!read.isReceipt) {
+      setProofFailed(true);
       respond(
-        [bot("That doesn't look like a payment confirmation. Please upload a clear screenshot of the receipt.")],
+        [bot("That doesn't look like a payment confirmation. Please upload a clear screenshot of the receipt, or close the chat if you need to start again.")],
         () => setStage("proof"),
       );
       return;
     }
 
-    const items = runChecks(read);
+    let duplicateRef = false;
+    if (read.reference) {
+      const { data } = await supabase.rpc("proof_reference_used", { _reference: read.reference, _case_id: caseId.current });
+      duplicateRef = data === true;
+    }
+    const items = runChecks(read, duplicateRef);
     const readCard: Msg = {
       id: newId(),
       role: "bot",
@@ -687,17 +784,21 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     };
     const checksCard: Msg = { id: newId(), role: "bot", kind: "checks", items };
 
-    // Save transaction straight to the unified cases table for staff review queue
-        lastRead.current = read;
+    // The case reaches the staff dashboard only now, after the proof was uploaded.
+    // A withdrawal waits until payout details are submitted, unless the checks failed.
+    lastRead.current = read;
     if (!(current === "withdraw" && items.every((i) => i.ok))) await saveCaseToSupabase(read);
+    proofFile.current = { file, name };
+    if (caseId.current) await uploadProof(file, name);
 
     if (!items.every((i) => i.ok)) {
+      setProofFailed(true);
       respond(
         [
           readCard,
           checksCard,
           { id: newId(), role: "system", kind: "pill", tone: "wait", label: "Needs review" },
-          bot("Some checks didn't pass. Your case has been sent to our staff review queue."),
+          bot("Some checks didn't pass. Your case has been sent to our staff review queue. You can upload a different screenshot, talk to our staff, or close the chat."),
         ],
         () => setStage("proof"),
         900,
@@ -727,7 +828,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         readCard,
         checksCard,
         { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
-        bot(`Your proof passed automated checks. Our team will release ${money(amount)} to ${destination}.`),
+        bot(`Your proof passed automated checks. Our team will release ${money(ctx.current.netAmount)} to ${destination}.`),
       ],
       () => {
         setStage("ended");
@@ -752,6 +853,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ctx.current.payoutNumber = number;
 
     await saveCaseToSupabase();
+    if (proofFile.current) await uploadProof(proofFile.current.file, proofFile.current.name);
 
     const { netAmount } = ctx.current;
     const wait: Msg = { id: newId(), role: "system", kind: "pill", tone: "wait", label: "We're checking, please wait" };
@@ -775,36 +877,61 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (!value || typing) return;
     setInput("");
     if (stage === "name") return submitName(value);
+    if (stage === "live") { push(me(value)); return; } // goes straight to the staff dashboard
+    if (stage === "statement") return void submitStatementPhone(value);
+    if (/statement/i.test(value)) return askStatement(value);
     if (value.includes("?")) return askAI(value);
     if (stage === "amount") return /\d/.test(value) ? submitCustom(value) : askAI(value);
     if (stage === "detail") return submitDetail(value);
     askAI(value);
   };
 
-    const getStatement = async () => {
-    if (typing || !client.current) return;
-    push(me("Statement"));
-    const { data } = await supabase.rpc("client_get_statement", { _client_id: client.current.id });
-    if (!data?.length) {
-      respond([bot("I couldn't find any transactions on your account yet.")]);
-      return;
-    }
-    await downloadStatement({
-      title: "Account statement",
-      clientName: client.current.name,
-      rows: data,
-      filename: `Coinspace-statement-${client.current.name.replace(/\s+/g, "-")}.pdf`,
-      logoUrl: "/logo-light.jpeg",
-    });
-    respond([bot("Your statement has been downloaded. ✅")]);
+  const talkToStaff = async () => {
+    if (typing) return;
+    push(me("Talk to staff"));
+    setProofFailed(false);
+    setStage("live");
+    if (!caseId.current) await saveCaseToSupabase(undefined, true, "support");
+    respond([bot("You're now chatting with our team. We've alerted them and they'll reply here as soon as they can. Type your message below.")]);
   };
 
-  const accountHelp = () => {
+  const askStatement = (typed?: string) => {
     if (typing) return;
-    push(me("Account help"));
-        void saveCaseToSupabase(undefined, true, "support");
-    setStage("ended");
-    respond([bot("A Coinspace specialist will continue with you here.")]);
+    resetCase();
+    push(me(typed ?? "I need a statement"));
+    setDetailInput("");
+    setStage("statement");
+    respond([bot("Our team will send your statement to your WhatsApp number. Which number should we use? (e.g. +263 77 123 4567)")]);
+  };
+
+  const submitStatementPhone = async (raw: string) => {
+    const phone = raw.trim();
+    if (typing || !phone) return;
+    setDetailInput("");
+    push(me(phone));
+    if (!/^\+?[\d\s-]{9,16}$/.test(phone)) {
+      respond([bot("Please enter a valid WhatsApp number, for example +263 77 123 4567.")]);
+      return;
+    }
+    setStage("processing");
+    ctx.current.payoutNumber = phone;
+    await saveCaseToSupabase(undefined, true, "statement");
+    respond([bot(`Done. Our team has been notified and will send your statement to ${phone} on WhatsApp.`)], () => setStage("ended"), 700);
+  };
+
+  const onQr = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || typing) return;
+    let text: string | null = null;
+    try { text = await decodeQr(file); } catch { text = null; }
+    const address = text?.match(/T[1-9A-HJ-NP-Za-km-z]{33}/)?.[0];
+    if (!address) {
+      push(me("Uploaded QR code"));
+      respond([bot("I couldn't read a USDT TRC20 address from that QR code. Please try a clearer image or paste the address instead.")]);
+      return;
+    }
+    submitDetail(address);
   };
 
   const tag =
@@ -1030,12 +1157,16 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
         {showTray && (
           <div className="space-y-2 px-4 pb-2 pt-2">
+            {backable && !caseId.current && !["menu", "name", "live", "processing", "ended"].includes(stage) && (
+              <button type="button" onClick={goBack} className="text-sm font-bold text-black/70 hover:text-black hover:underline">
+                ← Back
+              </button>
+            )}
             {stage === "menu" && (
               <div className="flex flex-wrap gap-2">
                 <button className={chip} onClick={() => begin("deposit")}>Deposit</button>
                 <button className={chip} onClick={() => begin("withdraw")}>Withdraw</button>
-                <button className={chip} onClick={accountHelp}>Account help</button>
-                  <button className={chip} onClick={getStatement}>Statement</button>
+                <button className={chip} onClick={talkToStaff}>Talk to staff</button>
               </div>
             )}
 
@@ -1055,16 +1186,26 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
               </div>
             )}
 
-            {stage === "detail" && (
+            {stage === "detail" && pendingKind === "address" && (
+              <button
+                type="button"
+                onClick={() => qrRef.current?.click()}
+                className="w-full rounded-lg border border-dashed border-[#d8b840] bg-[#faf3cf] px-3 py-2 text-[13px] font-semibold text-[#8a6d1a] hover:brightness-95"
+              >
+                Upload a QR code of your wallet instead
+              </button>
+            )}
+
+            {(stage === "detail" || stage === "statement") && (
               <div className="flex gap-2">
                 <input
                   value={detailInput}
                   onChange={(e) => setDetailInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && submitDetail(detailInput)}
-                  placeholder={pendingKind ? DETAIL_PROMPTS[pendingKind] : ""}
+                  onKeyDown={(e) => e.key === "Enter" && (stage === "statement" ? void submitStatementPhone(detailInput) : submitDetail(detailInput))}
+                  placeholder={stage === "statement" ? "WhatsApp number, e.g. +263 77 123 4567" : pendingKind ? DETAIL_PROMPTS[pendingKind] : ""}
                   className={textField}
                 />
-                <button className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800" onClick={() => submitDetail(detailInput)}>
+                <button className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800" onClick={() => (stage === "statement" ? void submitStatementPhone(detailInput) : submitDetail(detailInput))}>
                   Continue
                 </button>
               </div>
@@ -1106,13 +1247,27 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
             )}
 
             {stage === "proof" && (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full rounded-lg border border-dashed border-[#d8b840] bg-[#faf3cf] px-3 py-2.5 text-[13px] font-semibold text-[#8a6d1a] hover:brightness-95"
-              >
-                Tap to upload your payment screenshot
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="w-full rounded-lg border border-dashed border-[#d8b840] bg-[#faf3cf] px-3 py-2.5 text-[13px] font-semibold text-[#8a6d1a] hover:brightness-95"
+                >
+                  {proofFailed ? "Upload a different screenshot" : "Tap to upload your payment screenshot"}
+                </button>
+                {proofFailed && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button className={chip} onClick={talkToStaff}>Talk to staff</button>
+                    <button className="px-3 py-1.5 text-sm font-bold text-black hover:underline" onClick={onClose}>Close chat</button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {stage === "live" && (
+              <div className="rounded-lg bg-[#faf3cf] px-3 py-2 text-[13px] text-[#8a6d1a]">
+                You're chatting with our team. Type your message below. They'll reply here.
+              </div>
             )}
 
             {stage === "payoutDetails" && (
@@ -1142,9 +1297,10 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
             {stage === "ended" && (
               <div className="flex flex-wrap items-center gap-2">
-                <button className={chip} onClick={getStatement}>Statement</button>
                 <button className="rounded-full bg-[#f0b90b] px-4 py-2 text-sm font-bold text-black hover:brightness-95" onClick={() => begin("deposit")}>+ New deposit</button>
                 <button className="rounded-full border border-black bg-white px-4 py-2 text-sm font-bold text-black hover:bg-black hover:text-white" onClick={() => begin("withdraw")}>New withdrawal</button>
+                <button className={chip} onClick={talkToStaff}>Talk to staff</button>
+                <button className={chip} onClick={() => askStatement()}>Request statement</button>
                 <button className="px-3 py-2 text-sm font-bold text-black hover:underline" onClick={onClose}>Close chat</button>
               </div>
             )}
@@ -1152,6 +1308,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         )}
 
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+        <input ref={qrRef} type="file" accept="image/*" className="hidden" onChange={onQr} />
 
         <div className="flex items-center gap-2 px-4 pb-4 pt-1">
           <input

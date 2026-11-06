@@ -26,8 +26,12 @@ async function post(payload: unknown) {
 export const analyseChart = (image: { mediaType: string; data: string }): Promise<Analysis> =>
   post({ mode: "analyse", image }).then((d) => d.analysis);
 
-export const chatWithAI = (messages: Msg[], context?: string, mode: "chat" | "transaction" = "chat"): Promise<string> =>
-  post({ mode, messages, context }).then((d) => d.reply);
+export const chatWithAI = (
+  messages: Msg[],
+  context?: string,
+  mode: "chat" | "transaction" = "chat",
+  image?: { mediaType: string; data: string },
+): Promise<string> => post({ mode, messages, context, image }).then((d) => d.reply);
 
 // Downscale to keep uploads fast and cheap, returns base64 JPEG
 export async function prepareImage(file: File): Promise<{ preview: string; mediaType: string; data: string }> {
@@ -49,6 +53,8 @@ export type ProofRead = {
   sender: string;
   status: "success" | "failed" | "pending" | "unknown";
   confidence: number;
+ suspicious: boolean; signals: string[];
+  issues: string[];
 };
 
 export const readProof = async (image: { mediaType: string; data: string }): Promise<ProofRead> => {
@@ -62,5 +68,7 @@ export const readProof = async (image: { mediaType: string; data: string }): Pro
     sender: String(p.sender ?? ""),
     status: ["success", "failed", "pending"].includes(p.status) ? p.status : "unknown",
     confidence: Number(p.confidence) || 0,
+    suspicious: p.suspicious === true,
+    issues: Array.isArray(p.issues) ? p.issues.map(String).slice(0, 5) : [],
   };
 };
