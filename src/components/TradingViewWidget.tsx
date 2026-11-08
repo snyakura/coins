@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { setConsent, useConsent } from "@/components/CookieConsent";
 
 type Props = {
   widget: string; // e.g. "advanced-chart", "ticker-tape"
@@ -10,15 +11,17 @@ type Props = {
 function TradingViewWidgetBase({ widget, config, className, lazy = false }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(!lazy);
+  const { consent } = useConsent();
+  const allowed = consent?.thirdParty === true; // TradingView loads only after the visitor allows third-party content
   const key = JSON.stringify(config);
 
   useEffect(() => {
-    if (!lazy || visible) return;
+    if (!allowed || !lazy || visible) return;
     const el = ref.current;
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry?.isIntersecting) {
           setVisible(true);
           io.disconnect();
         }
@@ -27,11 +30,11 @@ function TradingViewWidgetBase({ widget, config, className, lazy = false }: Prop
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [lazy, visible]);
+  }, [allowed, lazy, visible]);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || !visible) return;
+    if (!allowed || !el || !visible) return;
     el.innerHTML = "";
 
     const inner = document.createElement("div");
@@ -50,7 +53,21 @@ function TradingViewWidgetBase({ widget, config, className, lazy = false }: Prop
     return () => {
       el.innerHTML = "";
     };
-  }, [widget, key, visible]);
+  }, [allowed, widget, key, visible]);
+
+  if (!allowed) {
+    return (
+      <div className={`tradingview-widget-container flex flex-col items-center justify-center gap-3 rounded-2xl bg-muted p-6 text-center ${className ?? ""}`}>
+        <p className="text-sm font-semibold">This chart is provided by TradingView</p>
+        <p className="max-w-xs text-xs leading-5 text-muted-foreground">
+          TradingView may set its own cookies. Allow third-party content to see live charts and market data.
+        </p>
+        <button type="button" onClick={() => setConsent(true)} className="rounded-full bg-foreground px-5 py-2 text-xs font-semibold text-background">
+          Allow and show chart
+        </button>
+      </div>
+    );
+  }
 
   return <div ref={ref} className={`tradingview-widget-container ${className ?? ""}`} />;
 }

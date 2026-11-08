@@ -1,5 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
-
+import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { ArrowUpRight, Check, MessageCircle } from "lucide-react";
 import { CoinspaceShell } from "@/components/CoinspaceShell";

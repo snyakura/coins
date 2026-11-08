@@ -238,7 +238,7 @@ function MobileMenu({
 
       <div
         ref={panelRef}
-                className={`absolute inset-y-0 right-0 flex w-[86%] max-w-[22rem] flex-col overflow-hidden rounded-l-3xl bg-card shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`absolute inset-y-0 right-0 flex w-[86%] max-w-[22rem] flex-col overflow-hidden rounded-l-3xl bg-card shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none ${open ? "translate-x-0" : "translate-x-full"}`}
       >
         <div className="flex h-[4.5rem] shrink-0 items-center justify-between px-5">
           <div onClick={onClose}>

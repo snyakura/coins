@@ -120,6 +120,9 @@ const bot = (text: string): Msg => ({ id: newId(), role: "bot", kind: "text", te
 const me = (text: string): Msg => ({ id: newId(), role: "user", kind: "text", text, time: now() });
 
 const DEPOSIT_FEE = 0.08; // 8% on every deposit
+const IDLE_MS = 10 * 60 * 1000; // chats clear after 10 minutes with no activity
+const WARN_MS = 8 * 60 * 1000; // warning shows 2 minutes before that
+const SESSION_KEY = "cs_chat_session";
 const WELTRADE_AGENT = "The Forex Mafia"; // what clients search for on Weltrade
 
 const loadClient = (): { id: string; name: string; initials: string } | null => {
@@ -235,6 +238,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   const [liveCase, setLiveCase] = useState<string | null>(null);
   const [proofFailed, setProofFailed] = useState(false);
   const [backable, setBackable] = useState(false);
+  const [idleWarn, setIdleWarn] = useState(false);
+  const lastActivity = useRef(Date.now());
 
   const resetCase = () => {
     caseId.current = null;
@@ -270,8 +275,75 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setBackable(true);
   };
 
+  const touch = () => {
+    lastActivity.current = Date.now();
+    setIdleWarn(false);
+  };
+
+  /** Clears everything and starts a brand new chat */
+  const startFresh = (note?: string) => {
+    clearTimers();
+    setMessages([]);
+    setStage("menu");
+    setFlow(null);
+    setStep(0);
+    setTyping(false);
+    setInput("");
+    setCustom("");
+    setDetailInput("");
+    setNameInput("");
+    setNumberInput("");
+    setPendingKind("");
+    ctx.current = emptyCtx();
+    aiHistory.current = [];
+    msgsRef.current = [];
+    history.current = [];
+    setBackable(false);
+    setProofFailed(false);
+    resetCase();
+    client.current = loadClient();
+    touch();
+    if (note) push(bot(note));
+    if (mode && !client.current) {
+      setStage("name");
+      respond([bot("Hi! Before we start, please tell us your full name.\n\nBy continuing you agree to our Terms and Privacy Policy (links at the bottom of the page).")]);
+    } else if (mode) {
+      startMode(mode);
+    }
+  };
+
+  /** Puts a saved chat back exactly as the client left it */
+  const restoreSession = (saved: any) => {
+    clearTimers();
+    client.current = loadClient();
+    ctx.current = saved.ctx;
+    caseId.current = saved.caseId;
+    refCode.current = saved.refCode ?? "";
+    caseKind.current = saved.caseKind ?? "deposit";
+    seenStatus.current = saved.seenStatus ?? "review";
+    synced.current = saved.synced ?? 0;
+    chatStart.current = saved.chatStart ?? 0;
+    history.current = saved.history ?? [];
+    seenIds.current = new Set<string>(saved.seen ?? []);
+    msgsRef.current = saved.messages;
+    setMessages(saved.messages);
+    setStage(saved.stage);
+    setStep(saved.step ?? 0);
+    setFlow(saved.flow ?? null);
+    setPendingKind(saved.pending ?? "");
+    setProofFailed(!!saved.proofFailed);
+    setBackable((saved.history ?? []).length > 0);
+    setLiveCase(saved.caseId ?? null);
+    setTyping(false);
+    setInput("");
+    setCustom("");
+    setDetailInput("");
+    touch();
+  };
+
   const goBack = () => {
     if (typing) return;
+    touch();
     const snap = history.current.pop();
     if (!snap) return;
     setBackable(history.current.length > 0);
@@ -399,34 +471,53 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     startFlow(next);
   };
 
+  // Opening the chat: bring back the previous chat if it is less than 10 minutes old, otherwise start fresh
   useEffect(() => {
-    clearTimers();
-    setMessages([]);
-    setStage("menu");
-    setFlow(null);
-    setStep(0);
-    setTyping(false);
-    setInput("");
-    setCustom("");
-    setDetailInput("");
-    setNameInput("");
-    setNumberInput("");
-    setPendingKind("");
-    ctx.current = emptyCtx();
-    aiHistory.current = [];
-    msgsRef.current = [];
-    history.current = [];
-    setBackable(false);
-    setProofFailed(false);
-    resetCase();
-    client.current = loadClient();
-    if (mode && !client.current) {
-      setStage("name");
-      respond([bot("Hi! Before we start, please tell us your full name.\n\nBy continuing you agree to our Terms and Privacy Policy (links at the bottom of the page).")]);
-    } else if (mode) {
-      startMode(mode);
+    if (!mode) return; // closing keeps everything in memory and in sessionStorage
+    let saved: any = null;
+    try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null"); } catch { saved = null; }
+    if (saved?.v === 1 && Array.isArray(saved.messages) && saved.messages.length && Date.now() - Number(saved.at) < IDLE_MS) {
+      restoreSession(saved);
+      if ((mode === "deposit" || mode === "withdraw") && (saved.stage === "menu" || saved.stage === "ended")) begin(mode, false);
+      return;
     }
-    return clearTimers;
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+    startFresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  useEffect(() => clearTimers, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // save the chat after every settled change, so it survives closing the window or visiting another page
+  useEffect(() => {
+    if (!messages.length || typing || stage === "processing") return;
+    const last = messages[messages.length - 1] as { role?: string; staff?: boolean };
+    if (last.role === "user" || last.staff) touch();
+    try {
+      sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          v: 1, at: lastActivity.current, mode, messages, stage, step, flow, pending: pendingKind, ctx: ctx.current,
+          caseId: caseId.current, refCode: refCode.current, caseKind: caseKind.current, seenStatus: seenStatus.current,
+          synced: synced.current, chatStart: chatStart.current, proofFailed, history: history.current, seen: Array.from(seenIds.current),
+        }),
+      );
+    } catch { /* storage blocked or full */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, typing, stage, step, flow, pendingKind, proofFailed, liveCase, backable]);
+
+  // warn at 8 minutes of no activity, clear at 10
+  useEffect(() => {
+    if (!mode) return;
+    const t = window.setInterval(() => {
+      if (!msgsRef.current.length) return;
+      const idle = Date.now() - lastActivity.current;
+      if (idle >= IDLE_MS) {
+        try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+        startFresh("Your chat was cleared after 10 minutes of no activity. You can start again any time.");
+      } else setIdleWarn(idle >= WARN_MS);
+    }, 10000);
+    return () => window.clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -1142,13 +1233,21 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
           Please ensure all submitted details are accurate. The company is not liable for incorrect inputs.
         </div>
 
+        <div className={`border-b px-4 py-1.5 text-[11px] font-semibold ${idleWarn ? "border-[#f3b8b8] bg-[#fde8e8] text-[#9b1c1c]" : "border-black/5 bg-[#f4f4f1] text-black/55"}`}>
+          {idleWarn
+            ? "⏳ This chat will clear in about 2 minutes. Send a message to keep it."
+            : "Chats clear after 10 minutes of no activity. You can close this window and come back before then."}
+        </div>
+
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-          {messages.map(renderMessage)}
+          {messages.map((m) => (
+            <div key={m.id} className="anim-msg-in">{renderMessage(m)}</div>
+          ))}
           {typing && (
             <div className="flex justify-start">
               <div className="flex gap-1 rounded-2xl bg-[#fffffc] px-4 py-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
                 {[0, 1, 2].map((i) => (
-                  <span key={i} className="size-1.5 animate-pulse rounded-full bg-neutral-500" style={{ animationDelay: `${i * 150}ms` }} />
+                  <span key={i} className="anim-dot size-1.5 rounded-full bg-neutral-500" style={{ animationDelay: `${i * 150}ms` }} />
                 ))}
               </div>
             </div>

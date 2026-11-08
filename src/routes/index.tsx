@@ -41,8 +41,8 @@ function HomePage() {
       {/* Hero. It fills the whole first screen (4.5rem / 5rem is the header height), so the brokers strip
           only appears once you scroll. The content sits together in the middle of that space. */}
       <section className="flex min-h-[calc(100svh-4.5rem)] items-center overflow-x-clip sm:min-h-[calc(100svh-5rem)]">
-        <div className="page-container grid items-start gap-8 py-10 sm:py-16 2xl:grid-cols-[0.85fr_1.15fr] 2xl:gap-6">
-          {/* Text block. 2xl:pt-28 lowers it on large screens only. */}
+        <div className="page-container grid items-start gap-8 py-10 sm:py-16 xl:grid-cols-[0.85fr_1.15fr] xl:gap-6">
+          {/* Text block. xl:pt-28 lowers it on large screens only. */}
           <div className="xl:pt-28">
             <span className="anim-rise block text-xs font-semibold sm:text-sm">Trade global markets. On your terms.</span>
 
@@ -58,14 +58,14 @@ function HomePage() {
            <div className="anim-rise d3 mt-8 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
   <Button
     variant="primary"
-    className="shine anim-ring group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-foreground hover:text-white hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
+    className="anim-ring group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-foreground hover:text-white hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
     onClick={() => openChat("deposit")}
   >
     Deposit <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transform-none" />
   </Button>
   <Button
     variant="dark"
-    className="shine group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
+    className="group w-full transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary hover:text-primary-foreground hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto sm:min-w-40"
     onClick={() => openChat("withdraw")}
   >
     Withdraw <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transform-none" />
@@ -87,16 +87,16 @@ function HomePage() {
           </div>
 
           {/* Phone image: only shown when it fits on the right, never below the text */}
-          <div className="relative -mt-12 hidden items-center justify-end 2xl:flex">
-            <div className="anim-glow absolute right-10 top-1/2 size-[420px]  -translate-y-1/2 rounded-full bg-primary/40 blur-3xl" aria-hidden data-parallax="-0.08"/>
+          <div className="relative -mt-12 hidden items-center justify-end xl:flex">
+            <div data-parallax="-0.08" className="anim-glow absolute right-10 top-1/2 size-[420px] -translate-y-1/2 rounded-full bg-primary/40 blur-3xl" aria-hidden />
             <div data-parallax="0.05" className="anim-float relative w-full">
-              <img
-                src="/phone-hero-3d.svg"
-                alt="Coinspace app preview"
-                className="h-auto w-[112%] max-w-none cursor-pointer select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-4 hover:-rotate-2 hover:scale-[1.04] hover:drop-shadow-[0_50px_55px_rgba(0,0,0,0.28)] active:scale-[1.01] motion-reduce:transform-none motion-reduce:transition-none 2xl:translate-x-20"
-                loading="eager"
-                decoding="async"
-              />
+      <img
+        src="/phone-hero-3d.svg"
+        alt="Coinspace app preview"
+        className="h-auto w-[112%] max-w-none cursor-pointer select-none mix-blend-multiply drop-shadow-[0_30px_40px_rgba(0,0,0,0.18)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-4 hover:-rotate-2 hover:scale-[1.04] hover:drop-shadow-[0_50px_55px_rgba(0,0,0,0.28)] active:scale-[1.01] motion-reduce:transform-none motion-reduce:transition-none xl:translate-x-20"
+        loading="eager"
+        decoding="async"
+      />
             </div>
           </div>
         </div>
@@ -108,13 +108,13 @@ function HomePage() {
       <section className="bg-card py-10">
         <div className="page-container grid gap-8 lg:grid-cols-[260px_1fr]">
           <div><p className="text-xs font-semibold uppercase text-muted-foreground">How it works</p><h2 className="mt-2 text-3xl font-extrabold leading-none">Get started<br />in four simple steps.</h2><Button asChild variant="primary" className="mt-5"><Link to={GET_STARTED_PAGE}>Get started <ArrowRight size={17} /></Link></Button></div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">{steps.map(({ icon: Icon, title, text }, index) => <div key={title} className="relative"><div className="flex items-center gap-4"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-bold">{index + 1}</span><Icon /></div><h3 className="mt-3 text-sm font-bold">{title}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{text}</p></div>)}</div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">{steps.map(({ icon: Icon, title, text }, index) => <Reveal key={title} delay={index * 120} className="group relative"><div className="flex items-center gap-4"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-bold transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110">{index + 1}</span><Icon /></div><h3 className="mt-3 text-sm font-bold">{title}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{text}</p></Reveal>)}</div>
         </div>
         <div className="page-container mt-9 grid gap-4 md:grid-cols-3">{[
           [ShieldCheck, "No funds held", "Coinspace never holds your funds. You remain in control at all times."],
           [Bolt, "Confirmed in minutes", "Fast processing with real-time updates on your deposit and withdrawal."],
           [UserRound, "Support in chat", "Get help anytime from our team directly in the Coinspace chatbot."],
-        ].map(([Icon, title, text]) => { const C = Icon as typeof ShieldCheck; return <div key={title as string} className="panel flex gap-4 p-5"><span className="grid size-12 shrink-0 place-items-center rounded-full bg-accent"><C /></span><div><h3 className="font-bold">{title as string}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{text as string}</p></div></div>; })}</div>
+        ].map(([Icon, title, text], i) => { const C = Icon as typeof ShieldCheck; return <Reveal key={title as string} delay={i * 120} className="panel lift flex gap-4 p-5"><span className="grid size-12 shrink-0 place-items-center rounded-full bg-accent"><C /></span><div><h3 className="font-bold">{title as string}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{text as string}</p></div></Reveal>; })}</div>
       </section>
 
       {/* FAQ and call-to-action card, just above the footer */}

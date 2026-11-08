@@ -1,5 +1,5 @@
 import { ArrowRight, Plus, X } from "lucide-react";
-import { useId, useState, type MouseEvent } from "react";
+import { useId, useState } from "react";
 import { CoinspaceShell as _unused, useTransactionActions } from "@/components/CoinspaceShell";
 import { Button } from "@/components/ui/button";
 import { LINKS } from "@/lib/links";
@@ -31,15 +31,6 @@ const FAQS = [
     a: "Tap Withdraw and choose how you want to be paid, for example USDT through Binance ID, OKX ID or a TRC20, Optos or Polygon address. Follow the chat steps and your funds go directly to your account.",
   },
 ];
-
-/** Smooth-scrolls to the contact details in the footer (the footer is on every page). */
-function scrollToContact(event: MouseEvent<HTMLAnchorElement>) {
-  const target = document.getElementById("contact");
-  if (!target) return; // no footer found: the plain #contact link still works
-  event.preventDefault();
-  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  target.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
-}
 
 function FaqSection() {
   const baseId = useId();

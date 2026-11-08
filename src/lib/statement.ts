@@ -5,10 +5,10 @@
 export const COMPANY = {
   name: "Coinspace (Pvt) Ltd",
   tagline: "Forex, Metal, Synthetic and Crypto Trading",
-  address: "Pioneer House, 6th Floor Office 601, Bulawayo, Zimbabwe", // TODO: your full address
-  //email: "support@coinspace.co.zw", // TODO: edit
-  phone: "+263 78 429 3089 | +263 78 440 8555", // TODO: edit
-  web: "coins-three-theta.vercel.app/", // TODO: edit
+  address: "Harare, Zimbabwe", // TODO: your full address
+  email: "support@coinspace.co.zw", // TODO: edit
+  phone: "+263 00 000 0000", // TODO: edit
+  web: "www.coinspace.co.zw", // TODO: edit
 };
 
 export type StatementRow = {
@@ -116,7 +116,9 @@ export async function downloadStatement(o: Opts) {
   doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(...MUTED);
   let ry = y + 10.5;
   if (o.clientPhone && o.clientPhone !== "—") { doc.text(o.clientPhone, W - M, ry, { align: "right" }); ry += 4.2; }
-  const period = rows.length ? `${day(rows[0].created_at)} – ${day(rows[rows.length - 1].created_at)}` : "No transactions";
+  const firstRow = rows[0];
+  const lastRow = rows[rows.length - 1];
+  const period = firstRow && lastRow ? `${day(firstRow.created_at)} – ${day(lastRow.created_at)}` : "No transactions";
   doc.text(`Period: ${period}`, W - M, ry, { align: "right" });
 
   // summary boxes
@@ -160,8 +162,9 @@ export async function downloadStatement(o: Opts) {
     alternateRowStyles: { fillColor: [250, 250, 247] },
     columnStyles: { [last]: { halign: "right", fontStyle: "bold" } },
     didParseCell: (d: any) => {
-      if (d.section !== "body" || !rows[d.row.index]) return;
+      if (d.section !== "body") return;
       const r = rows[d.row.index];
+      if (!r) return;
       if (r.status === "rejected") d.cell.styles.textColor = MUTED;
       if (d.column.index === last && r.status === "approved") d.cell.styles.textColor = r.kind === "deposit" ? GREEN : RED;
       if (d.column.index === last - 1) {
