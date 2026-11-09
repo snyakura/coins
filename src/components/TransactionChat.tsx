@@ -321,7 +321,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     refCode.current = saved.refCode ?? "";
     caseKind.current = saved.caseKind ?? "deposit";
     seenStatus.current = saved.seenStatus ?? "review";
-    synced.current = saved.synced ?? 0;
+    synced.current = saved.caseId ? saved.messages.length : (saved.synced ?? 0); // everything shown was already sent, never send it again
     chatStart.current = saved.chatStart ?? 0;
     history.current = saved.history ?? [];
     seenIds.current = new Set<string>(saved.seen ?? []);
@@ -499,7 +499,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         JSON.stringify({
           v: 1, at: lastActivity.current, mode, messages, stage, step, flow, pending: pendingKind, ctx: ctx.current,
           caseId: caseId.current, refCode: refCode.current, caseKind: caseKind.current, seenStatus: seenStatus.current,
-          synced: synced.current, chatStart: chatStart.current, proofFailed, history: history.current, seen: Array.from(seenIds.current),
+          synced: caseId.current ? messages.length : synced.current, chatStart: chatStart.current, proofFailed, history: history.current, seen: Array.from(seenIds.current),
         }),
       );
     } catch { /* storage blocked or full */ }
@@ -551,6 +551,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         ? "This chat was closed by our team. You can start a new one any time."
         : status === "approved" ? "✅ Your request has been approved by our team." : "❌ Your request was rejected. Tap “Talk to staff” if you need help.";
       setMessages((cur) => [...cur, { ...bot(text), staff: true } as Msg]);
+      if (caseKind.current === "support") setStage((st) => (st === "live" ? "ended" : st));
     };
 
     const channel = supabase
@@ -559,13 +560,15 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       .on("broadcast", { event: "status" }, ({ payload }) => showStatus(String((payload as { status?: string }).status ?? "")))
       .subscribe();
 
-    const t = window.setInterval(async () => {
+    const poll = async () => {
       const { data } = await supabase.rpc("client_get_chat", { _case_id: liveCase });
       const row: any = Array.isArray(data) ? data[0] : data;
       if (!row) return;
       ((row.chat ?? []) as { from: string; id?: string; at?: string; text?: string }[]).filter((m) => m.from === "staff").forEach(showStaff);
       showStatus(row.status);
-    }, 8000);
+    };
+    void poll(); // check straight away, for example when the chat is reopened
+    const t = window.setInterval(poll, 8000);
 
     return () => {
       window.clearInterval(t);
@@ -982,6 +985,14 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     push(me("Talk to staff"));
     setProofFailed(false);
     setStage("live");
+    // Keep using the current case only while staff still have it open. Once it was approved, rejected or closed, start a new chat for staff.
+    let reuse = !!caseId.current;
+    if (reuse) {
+      const { data } = await supabase.rpc("client_get_chat", { _case_id: caseId.current });
+      const row: any = Array.isArray(data) ? data[0] : data;
+      reuse = !!row && row.status === "review";
+    }
+    if (!reuse) resetCase();
     if (!caseId.current) await saveCaseToSupabase(undefined, true, "support");
     respond([bot("You're now chatting with our team. We've alerted them and they'll reply here as soon as they can. Type your message below.")]);
   };
