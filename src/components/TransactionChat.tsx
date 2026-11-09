@@ -545,7 +545,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       setMessages((cur) => [...cur, { ...bot(`**Coinspace team:** ${m.text}`), staff: true } as Msg]);
     };
     const showStatus = (status: string) => {
-      if (status === "review" || status === seenStatus.current) return;
+      if (status === "review") { seenStatus.current = "review"; return; }
+      if (status === seenStatus.current) return;
       seenStatus.current = status;
       const text = caseKind.current === "support"
         ? "This chat was closed by our team. You can start a new one any time."
@@ -990,7 +991,9 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (reuse) {
       const { data } = await supabase.rpc("client_get_chat", { _case_id: caseId.current });
       const row: any = Array.isArray(data) ? data[0] : data;
-      reuse = !!row && row.status === "review";
+      // a closed chat is reopened with all its history; a finished transaction gets a new chat
+      reuse = !!row && (row.status === "review" || caseKind.current === "support");
+      if (reuse) seenStatus.current = "review";
     }
     if (!reuse) resetCase();
     if (!caseId.current) await saveCaseToSupabase(undefined, true, "support");
