@@ -6,6 +6,8 @@ import { BrandIcon, SiteFooter, SOCIALS } from "@/components/SiteFooter";
 import { TransactionChat, type ChatMode } from "@/components/TransactionChat";
 import { ScrollProgress, useScrollMotion } from "@/lib/scrollMotion";
 import { LINKS } from "@/lib/links";
+import { supabase } from "@/lib/supabase";
+import { getVerifiedUser } from "@/lib/session";
 
 const navigation = [
   { label: "Home", to: "/" as const, icon: Home },
@@ -335,9 +337,29 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
   const [scrolled, setScrolled] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  // Deposit and withdraw need an account. If the visitor isn't signed in, send them to /auth and
+  // bring them back here with the chat open. Support chat stays open to everyone.
+  const openChat = useCallback(async (mode: ChatMode) => {
+    if (mode !== "deposit" && mode !== "withdraw") return setChat(mode);
+    if (await getVerifiedUser()) return setChat(mode);
+    try { sessionStorage.setItem("cs_pending_chat", mode); } catch { /* ignore */ }
+    window.location.assign(`/auth?next=${encodeURIComponent(window.location.pathname)}`);
+  }, []);
   const chatFromMenu = useCallback((mode: ChatMode) => {
     setMenuOpen(false);
-    setChat(mode);
+    void openChat(mode);
+  }, [openChat]);
+
+  // Back from /auth: reopen the deposit/withdraw chat the visitor asked for.
+  useEffect(() => {
+    let pending: string | null = null;
+    try { pending = sessionStorage.getItem("cs_pending_chat"); } catch { /* ignore */ }
+    if (pending !== "deposit" && pending !== "withdraw") return;
+    getVerifiedUser().then((user) => {
+      if (!user) return;
+      try { sessionStorage.removeItem("cs_pending_chat"); } catch { /* ignore */ }
+      setChat(pending as ChatMode);
+    });
   }, []);
 
   // If the window grows to desktop size while the phone menu is open, close it.
@@ -349,10 +371,10 @@ export function CoinspaceShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const openChat = (event: Event) => setChat((event as CustomEvent<ChatMode>).detail);
-    window.addEventListener("coinspace:chat", openChat);
-    return () => window.removeEventListener("coinspace:chat", openChat);
-  }, []);
+    const onOpen = (event: Event) => void openChat((event as CustomEvent<ChatMode>).detail);
+    window.addEventListener("coinspace:chat", onOpen);
+    return () => window.removeEventListener("coinspace:chat", onOpen);
+  }, [openChat]);
 
   // Once the page has scrolled a little, the header gets a soft shadow and a touch more frost.
   useEffect(() => {

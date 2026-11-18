@@ -11,12 +11,31 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AiAnalyserRouteImport } from './routes/ai-analyser'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BlogRouteImport } from './routes/blog'
+import { Route as DerivRouteImport } from './routes/deriv'
 import { Route as LiveMarketRouteImport } from './routes/live-market'
 import { Route as ApiAiRouteImport } from './routes/api.ai'
 import { Route as ApiCalendarRouteImport } from './routes/api.calendar'
+import { Route as ApiDepositsRouteImport } from './routes/api.deposits'
 import { Route as ApiNewsRouteImport } from './routes/api.news'
+import { Route as ApiTransactionsRouteImport } from './routes/api.transactions'
+import { Route as ApiWithdrawalsRouteImport } from './routes/api.withdrawals'
+import { Route as ApiDepositsIdRouteImport } from './routes/api.deposits.$id'
+import { Route as ApiDerivConnectRouteImport } from './routes/api.deriv.connect'
+import { Route as ApiDerivReconcileRouteImport } from './routes/api.deriv.reconcile'
+import { Route as ApiDerivStatusRouteImport } from './routes/api.deriv.status'
+import { Route as ApiTransactionsIdRouteImport } from './routes/api.transactions.$id'
+import { Route as ApiWithdrawalsIdRouteImport } from './routes/api.withdrawals.$id'
+import { Route as ApiDepositsIdApproveRouteImport } from './routes/api.deposits.$id.approve'
+import { Route as ApiDepositsIdProofRouteImport } from './routes/api.deposits.$id.proof'
+import { Route as ApiDepositsIdRejectRouteImport } from './routes/api.deposits.$id.reject'
+import { Route as ApiDerivOauthCallbackRouteImport } from './routes/api.deriv.oauth.callback'
+import { Route as ApiWithdrawalsIdRequestVerificationRouteImport } from './routes/api.withdrawals.$id.request-verification'
+import { Route as ApiWithdrawalsIdSettlementRouteImport } from './routes/api.withdrawals.$id.settlement'
+import { Route as ApiWithdrawalsIdVerifyRouteImport } from './routes/api.withdrawals.$id.verify'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,14 +47,29 @@ const AccountsRoute = AccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AiAnalyserRoute = AiAnalyserRouteImport.update({
   id: '/ai-analyser',
   path: '/ai-analyser',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BlogRoute = BlogRouteImport.update({
   id: '/blog',
   path: '/blog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DerivRoute = DerivRouteImport.update({
+  id: '/deriv',
+  path: '/deriv',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveMarketRoute = LiveMarketRouteImport.update({
@@ -53,85 +87,291 @@ const ApiCalendarRoute = ApiCalendarRouteImport.update({
   path: '/api/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDepositsRoute = ApiDepositsRouteImport.update({
+  id: '/api/deposits',
+  path: '/api/deposits',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNewsRoute = ApiNewsRouteImport.update({
   id: '/api/news',
   path: '/api/news',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTransactionsRoute = ApiTransactionsRouteImport.update({
+  id: '/api/transactions',
+  path: '/api/transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWithdrawalsRoute = ApiWithdrawalsRouteImport.update({
+  id: '/api/withdrawals',
+  path: '/api/withdrawals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDepositsIdRoute = ApiDepositsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiDepositsRoute,
+} as any)
+const ApiDerivConnectRoute = ApiDerivConnectRouteImport.update({
+  id: '/api/deriv/connect',
+  path: '/api/deriv/connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDerivReconcileRoute = ApiDerivReconcileRouteImport.update({
+  id: '/api/deriv/reconcile',
+  path: '/api/deriv/reconcile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDerivStatusRoute = ApiDerivStatusRouteImport.update({
+  id: '/api/deriv/status',
+  path: '/api/deriv/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTransactionsIdRoute = ApiTransactionsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiTransactionsRoute,
+} as any)
+const ApiWithdrawalsIdRoute = ApiWithdrawalsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiWithdrawalsRoute,
+} as any)
+const ApiDepositsIdApproveRoute = ApiDepositsIdApproveRouteImport.update({
+  id: '/approve',
+  path: '/approve',
+  getParentRoute: () => ApiDepositsIdRoute,
+} as any)
+const ApiDepositsIdProofRoute = ApiDepositsIdProofRouteImport.update({
+  id: '/proof',
+  path: '/proof',
+  getParentRoute: () => ApiDepositsIdRoute,
+} as any)
+const ApiDepositsIdRejectRoute = ApiDepositsIdRejectRouteImport.update({
+  id: '/reject',
+  path: '/reject',
+  getParentRoute: () => ApiDepositsIdRoute,
+} as any)
+const ApiDerivOauthCallbackRoute = ApiDerivOauthCallbackRouteImport.update({
+  id: '/api/deriv/oauth/callback',
+  path: '/api/deriv/oauth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWithdrawalsIdRequestVerificationRoute =
+  ApiWithdrawalsIdRequestVerificationRouteImport.update({
+    id: '/request-verification',
+    path: '/request-verification',
+    getParentRoute: () => ApiWithdrawalsIdRoute,
+  } as any)
+const ApiWithdrawalsIdSettlementRoute =
+  ApiWithdrawalsIdSettlementRouteImport.update({
+    id: '/settlement',
+    path: '/settlement',
+    getParentRoute: () => ApiWithdrawalsIdRoute,
+  } as any)
+const ApiWithdrawalsIdVerifyRoute = ApiWithdrawalsIdVerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => ApiWithdrawalsIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admin': typeof AdminRoute
   '/ai-analyser': typeof AiAnalyserRoute
+  '/auth': typeof AuthRoute
   '/blog': typeof BlogRoute
+  '/deriv': typeof DerivRoute
   '/live-market': typeof LiveMarketRoute
   '/api/ai': typeof ApiAiRoute
   '/api/calendar': typeof ApiCalendarRoute
+  '/api/deposits': typeof ApiDepositsRouteWithChildren
   '/api/news': typeof ApiNewsRoute
+  '/api/transactions': typeof ApiTransactionsRouteWithChildren
+  '/api/withdrawals': typeof ApiWithdrawalsRouteWithChildren
+  '/api/deposits/$id': typeof ApiDepositsIdRouteWithChildren
+  '/api/deriv/connect': typeof ApiDerivConnectRoute
+  '/api/deriv/reconcile': typeof ApiDerivReconcileRoute
+  '/api/deriv/status': typeof ApiDerivStatusRoute
+  '/api/transactions/$id': typeof ApiTransactionsIdRoute
+  '/api/withdrawals/$id': typeof ApiWithdrawalsIdRouteWithChildren
+  '/api/deposits/$id/approve': typeof ApiDepositsIdApproveRoute
+  '/api/deposits/$id/proof': typeof ApiDepositsIdProofRoute
+  '/api/deposits/$id/reject': typeof ApiDepositsIdRejectRoute
+  '/api/deriv/oauth/callback': typeof ApiDerivOauthCallbackRoute
+  '/api/withdrawals/$id/request-verification': typeof ApiWithdrawalsIdRequestVerificationRoute
+  '/api/withdrawals/$id/settlement': typeof ApiWithdrawalsIdSettlementRoute
+  '/api/withdrawals/$id/verify': typeof ApiWithdrawalsIdVerifyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admin': typeof AdminRoute
   '/ai-analyser': typeof AiAnalyserRoute
+  '/auth': typeof AuthRoute
   '/blog': typeof BlogRoute
+  '/deriv': typeof DerivRoute
   '/live-market': typeof LiveMarketRoute
   '/api/ai': typeof ApiAiRoute
   '/api/calendar': typeof ApiCalendarRoute
+  '/api/deposits': typeof ApiDepositsRouteWithChildren
   '/api/news': typeof ApiNewsRoute
+  '/api/transactions': typeof ApiTransactionsRouteWithChildren
+  '/api/withdrawals': typeof ApiWithdrawalsRouteWithChildren
+  '/api/deposits/$id': typeof ApiDepositsIdRouteWithChildren
+  '/api/deriv/connect': typeof ApiDerivConnectRoute
+  '/api/deriv/reconcile': typeof ApiDerivReconcileRoute
+  '/api/deriv/status': typeof ApiDerivStatusRoute
+  '/api/transactions/$id': typeof ApiTransactionsIdRoute
+  '/api/withdrawals/$id': typeof ApiWithdrawalsIdRouteWithChildren
+  '/api/deposits/$id/approve': typeof ApiDepositsIdApproveRoute
+  '/api/deposits/$id/proof': typeof ApiDepositsIdProofRoute
+  '/api/deposits/$id/reject': typeof ApiDepositsIdRejectRoute
+  '/api/deriv/oauth/callback': typeof ApiDerivOauthCallbackRoute
+  '/api/withdrawals/$id/request-verification': typeof ApiWithdrawalsIdRequestVerificationRoute
+  '/api/withdrawals/$id/settlement': typeof ApiWithdrawalsIdSettlementRoute
+  '/api/withdrawals/$id/verify': typeof ApiWithdrawalsIdVerifyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admin': typeof AdminRoute
   '/ai-analyser': typeof AiAnalyserRoute
+  '/auth': typeof AuthRoute
   '/blog': typeof BlogRoute
+  '/deriv': typeof DerivRoute
   '/live-market': typeof LiveMarketRoute
   '/api/ai': typeof ApiAiRoute
   '/api/calendar': typeof ApiCalendarRoute
+  '/api/deposits': typeof ApiDepositsRouteWithChildren
   '/api/news': typeof ApiNewsRoute
+  '/api/transactions': typeof ApiTransactionsRouteWithChildren
+  '/api/withdrawals': typeof ApiWithdrawalsRouteWithChildren
+  '/api/deposits/$id': typeof ApiDepositsIdRouteWithChildren
+  '/api/deriv/connect': typeof ApiDerivConnectRoute
+  '/api/deriv/reconcile': typeof ApiDerivReconcileRoute
+  '/api/deriv/status': typeof ApiDerivStatusRoute
+  '/api/transactions/$id': typeof ApiTransactionsIdRoute
+  '/api/withdrawals/$id': typeof ApiWithdrawalsIdRouteWithChildren
+  '/api/deposits/$id/approve': typeof ApiDepositsIdApproveRoute
+  '/api/deposits/$id/proof': typeof ApiDepositsIdProofRoute
+  '/api/deposits/$id/reject': typeof ApiDepositsIdRejectRoute
+  '/api/deriv/oauth/callback': typeof ApiDerivOauthCallbackRoute
+  '/api/withdrawals/$id/request-verification': typeof ApiWithdrawalsIdRequestVerificationRoute
+  '/api/withdrawals/$id/settlement': typeof ApiWithdrawalsIdSettlementRoute
+  '/api/withdrawals/$id/verify': typeof ApiWithdrawalsIdVerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/accounts'
+    | '/admin'
     | '/ai-analyser'
+    | '/auth'
     | '/blog'
+    | '/deriv'
     | '/live-market'
     | '/api/ai'
     | '/api/calendar'
+    | '/api/deposits'
     | '/api/news'
+    | '/api/transactions'
+    | '/api/withdrawals'
+    | '/api/deposits/$id'
+    | '/api/deriv/connect'
+    | '/api/deriv/reconcile'
+    | '/api/deriv/status'
+    | '/api/transactions/$id'
+    | '/api/withdrawals/$id'
+    | '/api/deposits/$id/approve'
+    | '/api/deposits/$id/proof'
+    | '/api/deposits/$id/reject'
+    | '/api/deriv/oauth/callback'
+    | '/api/withdrawals/$id/request-verification'
+    | '/api/withdrawals/$id/settlement'
+    | '/api/withdrawals/$id/verify'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/accounts'
+    | '/admin'
     | '/ai-analyser'
+    | '/auth'
     | '/blog'
+    | '/deriv'
     | '/live-market'
     | '/api/ai'
     | '/api/calendar'
+    | '/api/deposits'
     | '/api/news'
+    | '/api/transactions'
+    | '/api/withdrawals'
+    | '/api/deposits/$id'
+    | '/api/deriv/connect'
+    | '/api/deriv/reconcile'
+    | '/api/deriv/status'
+    | '/api/transactions/$id'
+    | '/api/withdrawals/$id'
+    | '/api/deposits/$id/approve'
+    | '/api/deposits/$id/proof'
+    | '/api/deposits/$id/reject'
+    | '/api/deriv/oauth/callback'
+    | '/api/withdrawals/$id/request-verification'
+    | '/api/withdrawals/$id/settlement'
+    | '/api/withdrawals/$id/verify'
   id:
     | '__root__'
     | '/'
     | '/accounts'
+    | '/admin'
     | '/ai-analyser'
+    | '/auth'
     | '/blog'
+    | '/deriv'
     | '/live-market'
     | '/api/ai'
     | '/api/calendar'
+    | '/api/deposits'
     | '/api/news'
+    | '/api/transactions'
+    | '/api/withdrawals'
+    | '/api/deposits/$id'
+    | '/api/deriv/connect'
+    | '/api/deriv/reconcile'
+    | '/api/deriv/status'
+    | '/api/transactions/$id'
+    | '/api/withdrawals/$id'
+    | '/api/deposits/$id/approve'
+    | '/api/deposits/$id/proof'
+    | '/api/deposits/$id/reject'
+    | '/api/deriv/oauth/callback'
+    | '/api/withdrawals/$id/request-verification'
+    | '/api/withdrawals/$id/settlement'
+    | '/api/withdrawals/$id/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
+  AdminRoute: typeof AdminRoute
   AiAnalyserRoute: typeof AiAnalyserRoute
+  AuthRoute: typeof AuthRoute
   BlogRoute: typeof BlogRoute
+  DerivRoute: typeof DerivRoute
   LiveMarketRoute: typeof LiveMarketRoute
   ApiAiRoute: typeof ApiAiRoute
   ApiCalendarRoute: typeof ApiCalendarRoute
+  ApiDepositsRoute: typeof ApiDepositsRouteWithChildren
   ApiNewsRoute: typeof ApiNewsRoute
+  ApiTransactionsRoute: typeof ApiTransactionsRouteWithChildren
+  ApiWithdrawalsRoute: typeof ApiWithdrawalsRouteWithChildren
+  ApiDerivConnectRoute: typeof ApiDerivConnectRoute
+  ApiDerivReconcileRoute: typeof ApiDerivReconcileRoute
+  ApiDerivStatusRoute: typeof ApiDerivStatusRoute
+  ApiDerivOauthCallbackRoute: typeof ApiDerivOauthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -150,6 +390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ai-analyser': {
       id: '/ai-analyser'
       path: '/ai-analyser'
@@ -157,11 +404,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiAnalyserRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/blog': {
       id: '/blog'
       path: '/blog'
       fullPath: '/blog'
       preLoaderRoute: typeof BlogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deriv': {
+      id: '/deriv'
+      path: '/deriv'
+      fullPath: '/deriv'
+      preLoaderRoute: typeof DerivRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/live-market': {
@@ -185,6 +446,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/deposits': {
+      id: '/api/deposits'
+      path: '/api/deposits'
+      fullPath: '/api/deposits'
+      preLoaderRoute: typeof ApiDepositsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/news': {
       id: '/api/news'
       path: '/api/news'
@@ -192,18 +460,201 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/transactions': {
+      id: '/api/transactions'
+      path: '/api/transactions'
+      fullPath: '/api/transactions'
+      preLoaderRoute: typeof ApiTransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/withdrawals': {
+      id: '/api/withdrawals'
+      path: '/api/withdrawals'
+      fullPath: '/api/withdrawals'
+      preLoaderRoute: typeof ApiWithdrawalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/deposits/$id': {
+      id: '/api/deposits/$id'
+      path: '/$id'
+      fullPath: '/api/deposits/$id'
+      preLoaderRoute: typeof ApiDepositsIdRouteImport
+      parentRoute: typeof ApiDepositsRoute
+    }
+    '/api/deriv/connect': {
+      id: '/api/deriv/connect'
+      path: '/api/deriv/connect'
+      fullPath: '/api/deriv/connect'
+      preLoaderRoute: typeof ApiDerivConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/deriv/reconcile': {
+      id: '/api/deriv/reconcile'
+      path: '/api/deriv/reconcile'
+      fullPath: '/api/deriv/reconcile'
+      preLoaderRoute: typeof ApiDerivReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/deriv/status': {
+      id: '/api/deriv/status'
+      path: '/api/deriv/status'
+      fullPath: '/api/deriv/status'
+      preLoaderRoute: typeof ApiDerivStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/transactions/$id': {
+      id: '/api/transactions/$id'
+      path: '/$id'
+      fullPath: '/api/transactions/$id'
+      preLoaderRoute: typeof ApiTransactionsIdRouteImport
+      parentRoute: typeof ApiTransactionsRoute
+    }
+    '/api/withdrawals/$id': {
+      id: '/api/withdrawals/$id'
+      path: '/$id'
+      fullPath: '/api/withdrawals/$id'
+      preLoaderRoute: typeof ApiWithdrawalsIdRouteImport
+      parentRoute: typeof ApiWithdrawalsRoute
+    }
+    '/api/deposits/$id/approve': {
+      id: '/api/deposits/$id/approve'
+      path: '/approve'
+      fullPath: '/api/deposits/$id/approve'
+      preLoaderRoute: typeof ApiDepositsIdApproveRouteImport
+      parentRoute: typeof ApiDepositsIdRoute
+    }
+    '/api/deposits/$id/proof': {
+      id: '/api/deposits/$id/proof'
+      path: '/proof'
+      fullPath: '/api/deposits/$id/proof'
+      preLoaderRoute: typeof ApiDepositsIdProofRouteImport
+      parentRoute: typeof ApiDepositsIdRoute
+    }
+    '/api/deposits/$id/reject': {
+      id: '/api/deposits/$id/reject'
+      path: '/reject'
+      fullPath: '/api/deposits/$id/reject'
+      preLoaderRoute: typeof ApiDepositsIdRejectRouteImport
+      parentRoute: typeof ApiDepositsIdRoute
+    }
+    '/api/deriv/oauth/callback': {
+      id: '/api/deriv/oauth/callback'
+      path: '/api/deriv/oauth/callback'
+      fullPath: '/api/deriv/oauth/callback'
+      preLoaderRoute: typeof ApiDerivOauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/withdrawals/$id/request-verification': {
+      id: '/api/withdrawals/$id/request-verification'
+      path: '/request-verification'
+      fullPath: '/api/withdrawals/$id/request-verification'
+      preLoaderRoute: typeof ApiWithdrawalsIdRequestVerificationRouteImport
+      parentRoute: typeof ApiWithdrawalsIdRoute
+    }
+    '/api/withdrawals/$id/settlement': {
+      id: '/api/withdrawals/$id/settlement'
+      path: '/settlement'
+      fullPath: '/api/withdrawals/$id/settlement'
+      preLoaderRoute: typeof ApiWithdrawalsIdSettlementRouteImport
+      parentRoute: typeof ApiWithdrawalsIdRoute
+    }
+    '/api/withdrawals/$id/verify': {
+      id: '/api/withdrawals/$id/verify'
+      path: '/verify'
+      fullPath: '/api/withdrawals/$id/verify'
+      preLoaderRoute: typeof ApiWithdrawalsIdVerifyRouteImport
+      parentRoute: typeof ApiWithdrawalsIdRoute
+    }
   }
 }
+
+interface ApiDepositsIdRouteChildren {
+  ApiDepositsIdApproveRoute: typeof ApiDepositsIdApproveRoute
+  ApiDepositsIdProofRoute: typeof ApiDepositsIdProofRoute
+  ApiDepositsIdRejectRoute: typeof ApiDepositsIdRejectRoute
+}
+
+const ApiDepositsIdRouteChildren: ApiDepositsIdRouteChildren = {
+  ApiDepositsIdApproveRoute: ApiDepositsIdApproveRoute,
+  ApiDepositsIdProofRoute: ApiDepositsIdProofRoute,
+  ApiDepositsIdRejectRoute: ApiDepositsIdRejectRoute,
+}
+
+const ApiDepositsIdRouteWithChildren = ApiDepositsIdRoute._addFileChildren(
+  ApiDepositsIdRouteChildren,
+)
+
+interface ApiDepositsRouteChildren {
+  ApiDepositsIdRoute: typeof ApiDepositsIdRouteWithChildren
+}
+
+const ApiDepositsRouteChildren: ApiDepositsRouteChildren = {
+  ApiDepositsIdRoute: ApiDepositsIdRouteWithChildren,
+}
+
+const ApiDepositsRouteWithChildren = ApiDepositsRoute._addFileChildren(
+  ApiDepositsRouteChildren,
+)
+
+interface ApiTransactionsRouteChildren {
+  ApiTransactionsIdRoute: typeof ApiTransactionsIdRoute
+}
+
+const ApiTransactionsRouteChildren: ApiTransactionsRouteChildren = {
+  ApiTransactionsIdRoute: ApiTransactionsIdRoute,
+}
+
+const ApiTransactionsRouteWithChildren = ApiTransactionsRoute._addFileChildren(
+  ApiTransactionsRouteChildren,
+)
+
+interface ApiWithdrawalsIdRouteChildren {
+  ApiWithdrawalsIdRequestVerificationRoute: typeof ApiWithdrawalsIdRequestVerificationRoute
+  ApiWithdrawalsIdSettlementRoute: typeof ApiWithdrawalsIdSettlementRoute
+  ApiWithdrawalsIdVerifyRoute: typeof ApiWithdrawalsIdVerifyRoute
+}
+
+const ApiWithdrawalsIdRouteChildren: ApiWithdrawalsIdRouteChildren = {
+  ApiWithdrawalsIdRequestVerificationRoute:
+    ApiWithdrawalsIdRequestVerificationRoute,
+  ApiWithdrawalsIdSettlementRoute: ApiWithdrawalsIdSettlementRoute,
+  ApiWithdrawalsIdVerifyRoute: ApiWithdrawalsIdVerifyRoute,
+}
+
+const ApiWithdrawalsIdRouteWithChildren =
+  ApiWithdrawalsIdRoute._addFileChildren(ApiWithdrawalsIdRouteChildren)
+
+interface ApiWithdrawalsRouteChildren {
+  ApiWithdrawalsIdRoute: typeof ApiWithdrawalsIdRouteWithChildren
+}
+
+const ApiWithdrawalsRouteChildren: ApiWithdrawalsRouteChildren = {
+  ApiWithdrawalsIdRoute: ApiWithdrawalsIdRouteWithChildren,
+}
+
+const ApiWithdrawalsRouteWithChildren = ApiWithdrawalsRoute._addFileChildren(
+  ApiWithdrawalsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
+  AdminRoute: AdminRoute,
   AiAnalyserRoute: AiAnalyserRoute,
+  AuthRoute: AuthRoute,
   BlogRoute: BlogRoute,
+  DerivRoute: DerivRoute,
   LiveMarketRoute: LiveMarketRoute,
   ApiAiRoute: ApiAiRoute,
   ApiCalendarRoute: ApiCalendarRoute,
+  ApiDepositsRoute: ApiDepositsRouteWithChildren,
   ApiNewsRoute: ApiNewsRoute,
+  ApiTransactionsRoute: ApiTransactionsRouteWithChildren,
+  ApiWithdrawalsRoute: ApiWithdrawalsRouteWithChildren,
+  ApiDerivConnectRoute: ApiDerivConnectRoute,
+  ApiDerivReconcileRoute: ApiDerivReconcileRoute,
+  ApiDerivStatusRoute: ApiDerivStatusRoute,
+  ApiDerivOauthCallbackRoute: ApiDerivOauthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
