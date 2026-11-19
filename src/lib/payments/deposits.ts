@@ -32,7 +32,7 @@ export async function createDeposit(ctx: Ctx, userId: string, input: { amount: u
   if (!NICK.test(nick)) throw new ServiceError(400, "Please enter a valid Deriv nickname.", "INVALID_NICKNAME");
 
   const gross = toCents(amount);
-  const fee = Math.round(gross * (ctx.depositFeePercent / 100));
+  const fee = gross <= toCents(10) ? toCents(1) : Math.round(gross * (ctx.depositFeePercent / 100)); // $1 flat up to $10, otherwise the percentage
   const net = gross - fee;
   const requestId = `DEP-${dayStamp(ctx.now())}-${randomId()}`;
 
@@ -88,6 +88,13 @@ export async function cancelDeposit(ctx: Ctx, userId: string, id: string) {
 
 function requireAdmin(a: Actor) { if (!a.isAdmin) throw new ServiceError(403, "Not allowed.", "FORBIDDEN"); }
 
+/** Staff can only act on a deposit once the client's proof has reached this server. Gives the staff dashboard a specific answer instead of a vague "already processed". */
+async function requireProofSubmitted(ctx: Ctx, id: string) {
+  const d = await ctx.repo.get("deposits", id);
+  if (!d) throw new ServiceError(404, "Deposit not found.", "NOT_FOUND");
+  if (d.status === "PENDING_PAYMENT") throw new ServiceError(409, "The client hasn't uploaded proof of payment for this deposit yet.", "NO_PROOF");
+}
+
 export async function startReview(ctx: Ctx, admin: Actor, id: string) {
   requireAdmin(admin);
   const d = await ctx.repo.get("deposits", id);
@@ -100,6 +107,7 @@ export async function startReview(ctx: Ctx, admin: Actor, id: string) {
 
 export async function rejectDeposit(ctx: Ctx, admin: Actor, id: string, reason: string) {
   requireAdmin(admin);
+  await requireProofSubmitted(ctx, id);
   await startReview(ctx, admin, id);
   const row = await move(ctx, id, "UNDER_REVIEW", "REJECTED", { error_message: reason.slice(0, 300), reviewed_by: admin.id });
   await ctx.repo.updateLedger("EXTERNAL_DEPOSIT", row.deriv_request_id, { status: "REJECTED" });
@@ -114,6 +122,7 @@ export async function rejectDeposit(ctx: Ctx, admin: Actor, id: string, reason: 
  */
 export async function approveDeposit(ctx: Ctx, admin: Actor, id: string) {
   requireAdmin(admin);
+  await requireProofSubmitted(ctx, id);
   await startReview(ctx, admin, id);
   const verified = await move(ctx, id, "UNDER_REVIEW", "PAYMENT_VERIFIED", { verified_at: ctx.now().toISOString(), reviewed_by: admin.id });
   await ctx.repo.updateLedger("EXTERNAL_DEPOSIT", verified.deriv_request_id, { status: "VERIFIED" });

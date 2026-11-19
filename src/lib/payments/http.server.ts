@@ -5,6 +5,32 @@ import { serviceClient } from "./supabaseRepo";
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
+/**
+ * Browsers the staff dashboard runs in may call the admin endpoints that opt in with `cors: true`.
+ * Set STAFF_DASHBOARD_ORIGINS to the dashboard's address(es), comma-separated, for example
+ * "https://staff.example.com". Leave it empty and no other website is allowed. The login token is still required either way.
+ */
+const staffOrigins = () =>
+  (process.env.STAFF_DASHBOARD_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+
+export function corsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("origin");
+  if (!origin || !staffOrigins().includes(origin)) return { Vary: "Origin" };
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Max-Age": "600",
+    Vary: "Origin",
+  };
+}
+
+/** Answers the browser's OPTIONS "preflight" check that comes before a cross-origin POST with an Authorization header. */
+export const preflight = ({ request }: { request: Request }) => new Response(null, { status: 204, headers: corsHeaders(request) });
+
 /** Bearer-token auth (Supabase access token in the Authorization header, not a cookie, so no CSRF surface). Role comes from app_metadata, which users cannot edit. */
 export async function authenticate(request: Request): Promise<Actor> {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -23,21 +49,27 @@ export function rateLimit(key: string, max: number, windowMs = 60_000) {
   if (++h.n > max) throw new ServiceError(429, "Too many requests. Please wait a moment.", "RATE_LIMITED");
 }
 
-type Opts = { admin?: boolean; limit?: number };
+type Opts = { admin?: boolean; limit?: number; cors?: boolean };
 /** Wraps a handler: auth, admin check, rate limit, uniform JSON errors. Technical errors are logged, never returned. */
 export function guarded(opts: Opts, fn: (a: { actor: Actor; request: Request; params: Record<string, string> }) => Promise<unknown>) {
-  return async ({ request, params }: { request: Request; params?: Record<string, string> }) => {
+  const respond = async (request: Request, params: Record<string, string>): Promise<Response> => {
     try {
       const actor = await authenticate(request);
       if (opts.admin && !actor.isAdmin) throw new ServiceError(403, "Not allowed.", "FORBIDDEN");
       rateLimit(`${actor.id}:${request.method}:${new URL(request.url).pathname.replace(/[0-9a-f-]{36}/g, ":id")}`, opts.limit ?? 30);
-      return json(await fn({ actor, request, params: params ?? {} }));
+      return json(await fn({ actor, request, params }));
     } catch (e) {
       if (e instanceof ServiceError) return json({ error: e.message, code: e.code }, e.status);
       if (e instanceof InvalidTransition) return json({ error: "That action isn't allowed in the current status.", code: "INVALID_TRANSITION" }, 409);
       console.error("[api] unexpected", (e as Error)?.message);
       return json({ error: "Unable to process the transaction at the moment. Please try again later.", code: "ERROR" }, 500);
     }
+  };
+  return async ({ request, params }: { request: Request; params?: Record<string, string> }) => {
+    const res = await respond(request, params ?? {});
+    // Success and error answers both carry the CORS headers, so the staff dashboard can read the error message.
+    if (opts.cors) for (const [k, v] of Object.entries(corsHeaders(request))) res.headers.set(k, v);
+    return res;
   };
 }
 

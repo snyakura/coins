@@ -3,13 +3,14 @@ import jsQR from "jsqr";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { chatWithAI, prepareImage, readProof, type ProofRead } from "@/lib/ai-client";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/payments/api-client";
 
 export type ChatMode = "deposit" | "withdraw" | "support";
 
 type Flow = "deposit" | "withdraw";
 type Asset = "USDT" | "WELTRADE" | "DERIV";
 type PaymentGateway = "Ecocash" | "InnBucks" | "FNB BUSINESS ACCOUNT";
-type Pending = "address" | "weltradeId" | "derivNick" | "";
+type Pending = "address" | "weltradeId" | "derivNick" | "derivConnect" | "";
 type Stage =
   | "menu"
   | "asset"
@@ -21,6 +22,8 @@ type Stage =
   | "proof"
   | "processing"
   | "payoutDetails"
+  | "derivCode"
+  | "derivReturn"
   | "name"
   | "live"
   | "statement"
@@ -61,6 +64,8 @@ type Ctx = {
   netAmount: number;
   payoutName: string;
   payoutNumber: string;
+  derivId: string; // id of the Deriv deposit / withdrawal record on our server
+  derivRef: string; // its Deriv request id
 };
 
 const emptyCtx = (flow: Flow | null = null): Ctx => ({
@@ -75,6 +80,8 @@ const emptyCtx = (flow: Flow | null = null): Ctx => ({
   netAmount: 0,
   payoutName: "",
   payoutNumber: "",
+  derivId: "",
+  derivRef: "",
 });
 
 const ASSETS: { id: Asset; label: string }[] = [
@@ -93,6 +100,7 @@ const QUICK_AMOUNTS = [10, 50, 100, 500, 1000];
 const MIN_AMOUNT = 5;
 const MAX_DEPOSIT = 2000;
 const LARGE_PAYOUT = 200;
+const DERIV_MAX_WITHDRAW = 2000; // the most Deriv lets our agent pay out in one withdrawal
 
 const GATEWAY_DETAILS: Record<PaymentGateway, { name?: string; number?: string; bank?: string; accNumber?: string }> = {
   Ecocash: { name: "Marc Anthony Zhou", number: "+263 78 429 3089" },
@@ -108,6 +116,7 @@ const DETAIL_PROMPTS: Record<Exclude<Pending, "">, string> = {
   address: "Wallet address",
   weltradeId: "Weltrade user ID",
   derivNick: "Deriv nickname",
+  derivConnect: "Your Deriv nickname",
 };
 
 let nextId = 0;
@@ -119,7 +128,53 @@ const plain = (n: number) => `$${+n.toFixed(2)}`;
 const bot = (text: string): Msg => ({ id: newId(), role: "bot", kind: "text", text, time: now() });
 const me = (text: string): Msg => ({ id: newId(), role: "user", kind: "text", text, time: now() });
 
-const DEPOSIT_FEE = 0.08; // 8% on every deposit
+/** Deriv transactions the chat keeps an eye on after the client is done (see the watch effect) */
+type WatchKind = "deposit" | "withdrawal";
+
+const watchDone = (kind: WatchKind, r: any) =>
+  kind === "deposit"
+    ? ["COMPLETED", "FAILED", "REJECTED", "CANCELLED"].includes(r.status)
+    : ["FAILED", "REJECTED", "CANCELLED"].includes(r.status) || r.settlement_status === "SETTLEMENT_COMPLETED";
+
+const watchText = (kind: WatchKind, r: any): string | null => {
+  const ref = r.deriv_request_id ? ` Reference: ${r.deriv_request_id}.` : "";
+  if (kind === "deposit") {
+    switch (r.status) {
+      case "PAYMENT_VERIFIED":
+      case "PROCESSING_DERIV":
+        return "✅ Your payment was verified. We're sending the funds to your Deriv account now.";
+      case "COMPLETED":
+        return `✅ Done! ${money(Number(r.net_amount))} has been credited to your Deriv account **${r.deriv_nickname}**.${ref}`;
+      case "REJECTED":
+        return `❌ We couldn't verify your payment. Tap “Talk to staff” if you need help.${ref}`;
+      case "FAILED":
+        return `❌ The transfer to your Deriv account didn't go through. Please talk to our staff.${ref}`;
+      case "CANCELLED":
+        return "This deposit was cancelled.";
+      default:
+        return null;
+    }
+  }
+  switch (r.status) {
+    case "COMPLETED":
+      if (r.settlement_status === "SETTLEMENT_COMPLETED")
+        return `✅ Your payout of **${money(Number(r.net_payout))}** has been sent to your ${r.payout_method} account (${r.payout_details}). Thank you!${ref}`;
+      if (r.settlement_status === "SETTLEMENT_PROCESSING") return "💸 We've started sending your payout. It should reach you shortly.";
+      return `✅ Deriv confirmed your withdrawal of **${money(Number(r.amount))}**.\n\nWe'll now send **${money(Number(r.net_payout))}** to your ${r.payout_method} account (${r.payout_details}). We'll update you here when it's been paid.${ref}`;
+    case "REJECTED":
+    case "FAILED":
+      return `❌ ${r.error_message || "Deriv couldn't complete this withdrawal."} Please talk to our staff if you need help.${ref}`;
+    case "CANCELLED":
+      return "This withdrawal was cancelled.";
+    default:
+      return null;
+  }
+};
+
+const DEPOSIT_FEE = 0.08; // 8% on deposits above $10
+const SMALL_DEPOSIT_MAX = 10; // deposits of $10 or less pay a flat fee instead
+const SMALL_DEPOSIT_FEE = 1;
+const depositFee = (amount: number) => (amount <= SMALL_DEPOSIT_MAX ? SMALL_DEPOSIT_FEE : amount * DEPOSIT_FEE);
 const IDLE_MS = 10 * 60 * 1000; // chats clear after 10 minutes with no activity
 const WARN_MS = 8 * 60 * 1000; // warning shows 2 minutes before that
 const SESSION_KEY = "cs_chat_session";
@@ -214,6 +269,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
   const [nameInput, setNameInput] = useState("");
   const [numberInput, setNumberInput] = useState("");
   const [pendingKind, setPendingKind] = useState<Pending>("");
+  const [codeInput, setCodeInput] = useState("");
+  const [watch, setWatch] = useState<{ kind: WatchKind; id: string } | null>(null);
+  const watchSeen = useRef("");
+  const resumeLock = useRef(false);
+  const derivMarked = useRef(""); // id of the staff case that already carries its Deriv deposit marker
 
   const ctx = useRef<Ctx>(emptyCtx());
   const timers = useRef<number[]>([]);
@@ -294,6 +354,8 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     setNameInput("");
     setNumberInput("");
     setPendingKind("");
+    setCodeInput("");
+    setWatch(null);
     ctx.current = emptyCtx();
     aiHistory.current = [];
     msgsRef.current = [];
@@ -389,6 +451,10 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (!cl) return;
     if (read) lastRead.current = read;
     const r = read ?? lastRead.current;
+    // A Deriv deposit case carries the id of its deposit on our payments server. The staff dashboard needs it to send the money to Deriv when staff press Approve.
+    const isDerivDeposit = !kind && c.flow === "deposit" && c.asset === "DERIV";
+    if (isDerivDeposit && !c.derivId) return; // never put a Deriv deposit in front of staff without its deposit id
+    const derivDepositId = isDerivDeposit ? c.derivId : "";
     const first = !caseId.current;
     if (first) {
       caseId.current = crypto.randomUUID();
@@ -418,18 +484,29 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         _phone: c.payoutNumber || "",
         _kind: kind ? "support" : c.flow === "withdraw" ? "withdrawal" : "deposit",
         _amount: kind ? 0 : c.amount,
-        _platform: kind === "statement" ? "Statement" : kind ? "Support" : c.gateway || c.asset || "Coinspace",
+        _platform: kind === "statement" ? "Statement" : kind ? "Support" : derivDepositId ? `Deriv · ${c.gateway}` : c.gateway || c.asset || "Coinspace",
         _reference: r?.reference || refCode.current,
         _flag: flag,
         _flag_tone: mismatch || kind === "support" ? "danger" : "warn",
         _flag_detail: detail,
-        _ai_read: r ? { amount: r.amount ?? 0, amount_mismatch: mismatch, reference: r.reference || "—", sender: r.sender || "—", confidence: Math.round(r.confidence) } : null,
+        _ai_read: r ? { amount: r.amount ?? 0, amount_mismatch: mismatch, reference: r.reference || "—", sender: r.sender || "—", confidence: Math.round(r.confidence), ...(derivDepositId ? { deriv_deposit_id: derivDepositId } : {}) } : null,
         _chat: backlog,
       }),
     );
     queue.current = p.catch(() => {});
     const res: any = await p;
     if (res?.error) console.error("case sync:", res.error.message);
+    // The same id also goes into the case's chat, so staff can see it and it is stored even if the case row ignores extra fields.
+    if (derivDepositId && caseId.current && !res?.error && derivMarked.current !== caseId.current) {
+      derivMarked.current = caseId.current;
+      appendChat(caseId.current, {
+        from: "bot",
+        text: `Deriv deposit ${c.derivRef} · ${money(c.netAmount)} to Deriv account ${c.detail}`,
+        deriv_deposit_id: derivDepositId,
+        deriv_request_id: c.derivRef,
+        at: new Date().toISOString(),
+      });
+    }
   };
 
   const startFlow = (next: Flow) => {
@@ -479,6 +556,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (saved?.v === 1 && Array.isArray(saved.messages) && saved.messages.length && Date.now() - Number(saved.at) < IDLE_MS) {
       restoreSession(saved);
       if ((mode === "deposit" || mode === "withdraw") && (saved.stage === "menu" || saved.stage === "ended")) begin(mode, false);
+      else if (saved.stage === "derivReturn") void resumeAfterConnect(); // back from Deriv's sign-in page
       return;
     }
     try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
@@ -577,6 +655,31 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     };
   }, [liveCase]);
 
+  // after the client is done, keep checking the Deriv deposit / withdrawal and tell them when it changes
+  useEffect(() => {
+    if (!watch) return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const r = await api<any>(watch.kind === "deposit" ? `/api/deposits/${watch.id}` : `/api/withdrawals/${watch.id}`);
+        const row = r.deposit ?? r.withdrawal;
+        if (stop || !row) return;
+        const key = `${row.status}|${row.settlement_status ?? ""}`;
+        if (key === watchSeen.current) return;
+        watchSeen.current = key;
+        const text = watchText(watch.kind, row);
+        if (text) setMessages((cur) => [...cur, bot(text)]);
+        if (watchDone(watch.kind, row)) setWatch(null);
+      } catch { /* try again on the next round */ }
+    };
+    const t = window.setInterval(tick, 8000);
+    void tick();
+    return () => {
+      stop = true;
+      window.clearInterval(t);
+    };
+  }, [watch]);
+
   if (!mode) return null;
 
   const pickGateway = (gateway: PaymentGateway, label: string) => {
@@ -600,7 +703,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       ]);
     } else {
       respond([
-        bot("How much would you like to withdraw? (Min: $5)\n\nNote: Withdrawals of $1,000 or more will have a **5% fee** automatically subtracted from the requested amount.")
+        bot(
+          ctx.current.asset === "DERIV"
+            ? "How much would you like to withdraw from Deriv? (Min: $5, Max: $2,000)\n\nNote: Withdrawals of $1,000 or more will have a **5% fee** automatically subtracted from the requested amount.\n\nYou'll sign in to Deriv and confirm with a one-time code, so keep your Deriv email or phone close."
+            : "How much would you like to withdraw? (Min: $5)\n\nNote: Withdrawals of $1,000 or more will have a **5% fee** automatically subtracted from the requested amount."
+        )
       ]);
     }
   };
@@ -646,6 +753,15 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const value = raw.trim();
     if (!value) return;
     setDetailInput("");
+    if (ctx.current.pending === "derivConnect") {
+      void connectDeriv(value);
+      return;
+    }
+    if (ctx.current.pending === "derivNick" && !/^[A-Za-z0-9_.-]{2,64}$/.test(value)) {
+      push(me(value));
+      respond([bot("That doesn't look like a valid Deriv nickname (letters, numbers, dots, dashes and underscores only). Please check it and enter it again.")]);
+      return;
+    }
     if (ctx.current.pending === "address" && !TRC20.test(value)) {
       push(me(value));
       respond([bot("That doesn't look like a TRC20 address (it starts with T and is 34 characters). Please check it and paste it again, or upload the QR code.")]);
@@ -714,7 +830,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ctx.current.amount = amount;
 
     const isWithdraw = ctx.current.flow === "withdraw";
-    const fee = isWithdraw ? (amount >= 1000 ? amount * 0.05 : 0) : amount * DEPOSIT_FEE;
+    const fee = isWithdraw ? (amount >= 1000 ? amount * 0.05 : 0) : depositFee(amount);
     const netAmount = amount - fee;
 
     ctx.current.fee = fee;
@@ -723,12 +839,31 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (ctx.current.flow === "deposit") {
       const destination = destinationLabel();
       ctx.current.destination = destination;
+      if (ctx.current.asset === "DERIV") {
+        void createDerivDeposit(amount, destination);
+        return;
+      }
       setStage("pay");
       setStep(3);
       respond([
-        bot(`Deposit: **${money(amount)}**\nFee (${DEPOSIT_FEE * 100}%): −${money(fee)}\nAmount credited to your account: **${money(netAmount)}**`),
+        bot(`Deposit: **${money(amount)}**\nFee${amount <= SMALL_DEPOSIT_MAX ? " (flat)" : ` (${DEPOSIT_FEE * 100}%)`}: −${money(fee)}\nAmount credited to your account: **${money(netAmount)}**`),
         bot(`Please send **${money(amount)}** using your selected gateway (${ctx.current.gateway}).`),
         { id: newId(), role: "bot", kind: "pay", amount, gateway: ctx.current.gateway as PaymentGateway, destination },
+      ]);
+      return;
+    }
+
+    if (ctx.current.asset === "DERIV") {
+      // Deriv withdrawals go through Deriv's API: payout details first, then sign-in and code
+      setStage("payoutDetails");
+      setStep(3);
+      respond([
+        bot(
+          fee > 0
+            ? `Withdrawing **${money(amount)}**. A 5% fee (${money(fee)}) has been subtracted. You will receive a net total of **${money(netAmount)}**.`
+            : `Withdrawing **${money(amount)}**.`
+        ),
+        bot(`Please enter the account name and number linked to your ${ctx.current.gateway} account to receive your payout.`),
       ]);
       return;
     }
@@ -751,12 +886,18 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (!value) return;
     setCustom("");
     const amount = parseFloat(value.replace(/[^0-9.]/g, ""));
-    const max = ctx.current.flow === "deposit" ? MAX_DEPOSIT : Infinity;
+    const derivWithdraw = ctx.current.flow === "withdraw" && ctx.current.asset === "DERIV";
+    const max = ctx.current.flow === "deposit" ? MAX_DEPOSIT : derivWithdraw ? DERIV_MAX_WITHDRAW : Infinity;
     if (!Number.isFinite(amount) || amount < MIN_AMOUNT || amount > max) {
       push(me(value));
       respond([
-        bot(ctx.current.flow === "deposit" ? "Please enter an amount between $5 and $2,000." : "Please enter an amount of $5 or more."),
+        bot(ctx.current.flow === "deposit" || derivWithdraw ? "Please enter an amount between $5 and $2,000." : "Please enter an amount of $5 or more."),
       ]);
+      return;
+    }
+    if (ctx.current.asset === "DERIV" && Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) {
+      push(me(value));
+      respond([bot("Please use at most 2 decimal places, for example 25.50.")]);
       return;
     }
     chooseAmount(amount);
@@ -882,7 +1023,10 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     // The case reaches the staff dashboard only now, after the proof was uploaded.
     // A withdrawal waits until payout details are submitted, unless the checks failed.
     lastRead.current = read;
-    if (!(current === "withdraw" && items.every((i) => i.ok))) await saveCaseToSupabase(read);
+    const derivDeposit = current === "deposit" && ctx.current.asset === "DERIV"; // paid out to Deriv by our payments server once staff approve it
+    // A Deriv deposit whose checks passed reaches staff only after our payments server has accepted the proof (see submitDerivProof), so Approve works the moment they see it.
+    const derivReady = derivDeposit && items.every((i) => i.ok);
+    if (!derivReady && !(current === "withdraw" && items.every((i) => i.ok))) await saveCaseToSupabase(read);
     proofFile.current = { file, name };
     if (caseId.current) await uploadProof(file, name);
 
@@ -898,6 +1042,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         () => setStage("proof"),
         900,
       );
+      return;
+    }
+
+    if (derivDeposit) {
+      await submitDerivProof(file, read, readCard, checksCard);
       return;
     }
 
@@ -947,6 +1096,11 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ctx.current.payoutName = name;
     ctx.current.payoutNumber = number;
 
+    if (ctx.current.asset === "DERIV" && ctx.current.flow === "withdraw") {
+      void startDerivWithdrawal();
+      return;
+    }
+
     await saveCaseToSupabase();
     if (proofFile.current) await uploadProof(proofFile.current.file, proofFile.current.name);
 
@@ -967,6 +1121,287 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     );
   };
 
+  // ---------------------------------------------------------------------------
+  // Deriv (real API). Everything below talks to OUR backend only; no Deriv secrets live in the browser.
+  // ---------------------------------------------------------------------------
+  const errText = (e: unknown) => (e instanceof Error && e.message ? e.message : "Something went wrong. Please try again.");
+  const errCode = (e: unknown) => (e as { code?: string } | null)?.code;
+
+  const startWatch = (kind: WatchKind, row: any) => {
+    watchSeen.current = `${row.status}|${row.settlement_status ?? ""}`;
+    setWatch({ kind, id: String(row.id) });
+  };
+
+  /** Deposit: creates the record on our server. It also checks the Deriv nickname (dry run) before the client pays anything. */
+  const createDerivDeposit = async (amount: number, destination: string) => {
+    setTyping(true);
+    try {
+      const { deposit } = await api<any>("/api/deposits", {
+        json: { amount, currency: "USD", paymentMethod: ctx.current.gateway, derivNickname: ctx.current.detail },
+      });
+      const fee = Number(deposit.fee);
+      const net = Number(deposit.net_amount);
+      ctx.current.fee = fee;
+      ctx.current.netAmount = net;
+      ctx.current.derivId = String(deposit.id);
+      ctx.current.derivRef = String(deposit.deriv_request_id);
+      setStage("pay");
+      setStep(3);
+      respond([
+        bot(`Deposit: **${money(amount)}**\nFee${amount <= SMALL_DEPOSIT_MAX ? " (flat)" : ` (${+((fee / amount) * 100).toFixed(2)}%)`}: −${money(fee)}\nAmount credited to your Deriv account: **${money(net)}**`),
+        bot(`Please send **${money(amount)}** using your selected gateway (${ctx.current.gateway}).`),
+        { id: newId(), role: "bot", kind: "pay", amount, gateway: ctx.current.gateway as PaymentGateway, destination },
+      ]);
+    } catch (e) {
+      setTyping(false);
+      const code = errCode(e);
+      if (code === "INVALID_NICKNAME" || code === "NicknameNotFound") {
+        askDetail("derivNick", `${errText(e)}\n\nPlease enter your Deriv nickname again.`);
+      } else {
+        setStage("amount");
+        respond([bot(errText(e))]);
+      }
+    }
+  };
+
+  /** Deposit: sends the proof to our server, then puts the case in the staff dashboard. Staff press Approve there, which sends the money to Deriv. */
+  const submitDerivProof = async (file: File, read: ProofRead, readCard: Msg, checksCard: Msg) => {
+    const id = ctx.current.derivId;
+    if (!id) {
+      respond([readCard, checksCard, bot("Something went wrong with this deposit. Please start a new deposit.")], () => {
+        setStage("ended");
+        setStep(5);
+      });
+      return;
+    }
+    setTyping(true);
+    try {
+      const img = await prepareImage(file); // small JPEG, always an accepted file type
+      const bin = atob(img.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const ref = (read.reference || "").trim();
+      const form = new FormData();
+      form.set("file", new Blob([bytes], { type: "image/jpeg" }), "proof.jpg");
+      form.set("reference", ref.length >= 3 ? ref.slice(0, 64) : ctx.current.derivRef);
+      const { deposit } = await api<any>(`/api/deposits/${id}/proof`, { form });
+      startWatch("deposit", deposit);
+      // The proof is on our server now. Show the case to staff with its Deriv deposit id. A problem here must never send the client back to upload again (the server already has the proof).
+      try {
+        await saveCaseToSupabase(read);
+        if (proofFile.current) await uploadProof(proofFile.current.file, proofFile.current.name);
+      } catch (e) {
+        console.error("case sync:", e);
+      }
+      respond(
+        [
+          readCard,
+          checksCard,
+          { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Checks passed", sub: "awaiting team confirmation" },
+          bot(`Your proof passed automated checks. Once our team confirms it, ${money(ctx.current.netAmount)} will be sent to your Deriv account **${ctx.current.detail}**. Keep this chat open and we'll update you here.`),
+        ],
+        () => {
+          setStage("ended");
+          setStep(5);
+        },
+        900,
+      );
+    } catch (e) {
+      setTyping(false);
+      setProofFailed(true);
+      respond([readCard, checksCard, bot(errText(e))], () => setStage("proof"), 900);
+    }
+  };
+
+  const askDerivConnect = (again: boolean) =>
+    askDetail(
+      "derivConnect",
+      again
+        ? "Your Deriv sign-in has expired or didn't complete. Please enter your Deriv nickname to sign in again."
+        : "Next, sign in to Deriv so we can send your withdrawal request. You'll approve one permission on Deriv's own page (we never see your password).\n\nPlease enter your Deriv nickname to continue.",
+    );
+
+  /** Withdrawal, step 1: the client signs in on Deriv's own page, then comes straight back to this chat. */
+  const connectDeriv = async (nick: string) => {
+    push(me(nick));
+    if (!/^[A-Za-z0-9_.-]{2,64}$/.test(nick)) {
+      respond([bot("That doesn't look like a valid Deriv nickname. Please check it and enter it again.")]);
+      return;
+    }
+    setTyping(true);
+    try {
+      const { url } = await api<{ url: string }>("/api/deriv/connect", { json: { nickname: nick } });
+      ctx.current.pending = "";
+      setPendingKind("");
+      setStage("derivReturn");
+      touch();
+      try {
+        sessionStorage.setItem("cs_pending_chat", "withdraw"); // reopens this chat when the client is back
+        document.cookie = "cs_deriv_return=chat; Path=/; Max-Age=900; SameSite=Lax"; // tells the server to send them back here
+      } catch { /* ignore */ }
+      respond([bot("Opening Deriv's secure sign-in page. After you approve, you'll come straight back here to continue.")], () => later(() => window.location.assign(url), 700));
+    } catch (e) {
+      setTyping(false);
+      respond([bot(errText(e))]);
+    }
+  };
+
+  /** Withdrawal, step 2: if signed in to Deriv, create the withdrawal and ask Deriv to send the 6-digit code. */
+  const startDerivWithdrawal = async () => {
+    setTyping(true);
+    try {
+      const st = await api<any>("/api/deriv/status");
+      if (st.connected) {
+        await proceedDerivWithdrawal();
+        return;
+      }
+      setTyping(false);
+      askDerivConnect(false);
+    } catch (e) {
+      setTyping(false);
+      setStage("payoutDetails");
+      respond([bot(errText(e))]);
+    }
+  };
+
+  const proceedDerivWithdrawal = async () => {
+    const c = ctx.current;
+    setTyping(true);
+    try {
+      if (!c.derivId) {
+        const { withdrawal } = await api<any>("/api/withdrawals", {
+          json: { amount: c.amount, currency: "USD", payoutMethod: c.gateway, payoutDetails: `${c.payoutName} - ${c.payoutNumber}` },
+        });
+        c.derivId = String(withdrawal.id);
+        c.derivRef = String(withdrawal.deriv_request_id);
+      }
+      await api(`/api/withdrawals/${c.derivId}/request-verification`, { method: "POST" });
+      setCodeInput("");
+      setStage("derivCode");
+      setStep(4);
+      respond([
+        { id: newId(), role: "system", kind: "pill", tone: "ok", label: "Connected to Deriv" },
+        bot(`We've asked Deriv to send a **6-digit verification code** to your registered email or phone. Enter it below to confirm your withdrawal of **${money(c.amount)}**.`),
+      ]);
+    } catch (e) {
+      setTyping(false);
+      if (errCode(e) === "NEEDS_CONNECT") {
+        askDerivConnect(true);
+        return;
+      }
+      if (c.derivId) {
+        setStage("derivCode");
+        respond([bot(`${errText(e)} Tap “Resend code” to try again.`)]);
+      } else {
+        setStage("payoutDetails");
+        respond([bot(errText(e))]);
+      }
+    }
+  };
+
+  /** Called when the chat reopens after Deriv's sign-in page */
+  const resumeAfterConnect = async () => {
+    if (resumeLock.current) return;
+    resumeLock.current = true;
+    const flag = new URLSearchParams(window.location.search).get("deriv");
+    try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignore */ }
+    try {
+      if (flag === "ok") {
+        push(bot("✅ Your Deriv account is connected."));
+        await proceedDerivWithdrawal();
+      } else {
+        askDetail(
+          "derivConnect",
+          flag === "failed"
+            ? "The Deriv connection didn't complete. Please enter your Deriv nickname to try again."
+            : "Let's finish signing in to Deriv. Please enter your Deriv nickname to continue.",
+        );
+      }
+    } finally {
+      resumeLock.current = false;
+    }
+  };
+
+  /** Withdrawal, step 3: the client enters the code. It goes straight to Deriv and is never shown or stored here. */
+  const submitDerivCode = async (raw?: string) => {
+    if (typing) return;
+    const code = (raw ?? codeInput).replace(/\s/g, "");
+    if (!/^\d{6}$/.test(code)) {
+      respond([bot("Please enter the 6-digit code Deriv sent you.")]);
+      return;
+    }
+    const id = ctx.current.derivId;
+    if (!id) return;
+    setCodeInput("");
+    push(me("••••••"));
+    setTyping(true);
+    try {
+      const { withdrawal } = await api<any>(`/api/withdrawals/${id}/verify`, { json: { code } });
+      setTyping(false);
+      afterWithdrawal(withdrawal);
+    } catch (e) {
+      if (errCode(e) === "NEEDS_CONNECT") {
+        setTyping(false);
+        askDerivConnect(true);
+        return;
+      }
+      // ask our server where the withdrawal stands, so a failed one never leaves the client stuck
+      const w = await api<any>(`/api/withdrawals/${id}`).then((r) => r.withdrawal).catch(() => null);
+      setTyping(false);
+      if (w && w.status !== "VERIFICATION_REQUIRED") {
+        afterWithdrawal(w);
+        return;
+      }
+      respond([bot(errText(e))]);
+    }
+  };
+
+  const resendDerivCode = async () => {
+    const id = ctx.current.derivId;
+    if (typing || !id) return;
+    setTyping(true);
+    try {
+      await api(`/api/withdrawals/${id}/request-verification`, { method: "POST" });
+      setTyping(false);
+      respond([bot("A new code is on its way from Deriv. Please enter the latest code.")]);
+    } catch (e) {
+      setTyping(false);
+      if (errCode(e) === "NEEDS_CONNECT") {
+        askDerivConnect(true);
+        return;
+      }
+      respond([bot(errText(e))]);
+    }
+  };
+
+  /** Shows the right message for wherever the withdrawal stands after Deriv's answer */
+  const afterWithdrawal = (w: any) => {
+    const done = () => {
+      setStage("ended");
+      setStep(5);
+    };
+    if (w.status === "COMPLETED") {
+      startWatch("withdrawal", w);
+      respond(
+        [{ id: newId(), role: "system", kind: "pill", tone: "ok", label: "Deriv confirmed" }, bot(watchText("withdrawal", w) ?? "✅ Deriv confirmed your withdrawal.")],
+        done,
+        900,
+      );
+      return;
+    }
+    if (w.status === "PROCESSING" || w.status === "VERIFIED") {
+      startWatch("withdrawal", w);
+      respond([bot("⏳ Deriv is processing your withdrawal. Keep this chat open and we'll update you here as soon as it's confirmed.")], done, 900);
+      return;
+    }
+    if (w.status === "VERIFICATION_REQUIRED") {
+      setStage("derivCode");
+      respond([bot("Please request a new code with “Resend code”, then enter it.")]);
+      return;
+    }
+    respond([bot(watchText("withdrawal", w) ?? "This withdrawal couldn't be completed. Please talk to our staff.")], done, 900);
+  };
+
   const submit = () => {
     const value = input.trim();
     if (!value || typing) return;
@@ -974,6 +1409,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     if (stage === "name") return submitName(value);
     if (stage === "live") { push(me(value)); return; } // goes straight to the staff dashboard
     if (stage === "statement") return void submitStatementPhone(value);
+    if (stage === "derivCode") return void submitDerivCode(value); // never send a code to the AI
     if (/statement/i.test(value)) return askStatement(value);
     if (value.includes("?")) return askAI(value);
     if (stage === "amount") return /\d/.test(value) ? submitCustom(value) : askAI(value);
@@ -1270,7 +1706,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
 
         {showTray && (
           <div className="space-y-2 px-4 pb-2 pt-2">
-            {backable && !caseId.current && !["menu", "name", "live", "processing", "ended"].includes(stage) && (
+            {backable && !caseId.current && !["menu", "name", "live", "processing", "ended", "derivCode", "derivReturn"].includes(stage) && (
               <button type="button" onClick={goBack} className="text-sm font-bold text-black/70 hover:text-black hover:underline">
                 ← Back
               </button>
@@ -1404,6 +1840,38 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
                   <button className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800" onClick={submitPayoutDetails}>
                     Submit
                   </button>
+                </div>
+              </div>
+            )}
+
+            {stage === "derivReturn" && (
+              <div className="rounded-lg bg-[#faf3cf] px-3 py-2 text-[13px] text-[#8a6d1a]">Taking you to Deriv to sign in…</div>
+            )}
+
+            {stage === "derivCode" && (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    onKeyDown={(e) => e.key === "Enter" && void submitDerivCode()}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="6-digit code from Deriv"
+                    className={textField}
+                  />
+                  <button
+                    className="rounded-full bg-black px-5 text-sm font-bold text-white hover:bg-neutral-800 disabled:opacity-50"
+                    disabled={codeInput.length !== 6}
+                    onClick={() => void submitDerivCode()}
+                  >
+                    Confirm
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className={chip} onClick={() => void resendDerivCode()}>Resend code</button>
+                  <button className={chip} onClick={talkToStaff}>Talk to staff</button>
                 </div>
               </div>
             )}

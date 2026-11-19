@@ -17,7 +17,7 @@ export class DerivClient implements DerivProvider {
         signal: ctrl.signal,
         headers: {
           "Content-Type": "application/json",
-          "Deriv-App-ID": this.cfg.appId,
+          ...(token === this.cfg.agentToken ? { "Deriv-App-ID": this.cfg.appId } : {}),
           Authorization: `Bearer ${token}`,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),

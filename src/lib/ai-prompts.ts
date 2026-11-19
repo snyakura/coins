@@ -55,7 +55,7 @@ export const COINSPACE_FACTS = `
 - Withdrawals: the client first sends funds to Coinspace (USDT via Binance ID, OKX ID or a network such as TRC20, POLYGON or OPTOS, or through Weltrade or Deriv payment agents), uploads a screenshot, then receives the payout by EcoCash.
 - Payouts of $200 or more get an extra check by a team member.
 - Every transaction has a reference that starts with CS-.
-- Every deposit has an 8% fee, shown to the client before they pay. Withdrawals of $1,000 or more have a 5% fee. Exchange rates and processing times are not listed here. Never state them; say a team member can confirm them.
+- Deposits of $10 or less have a flat $1 fee, and deposits above $10 have an 8% fee, shown to the client before they pay. Withdrawals of $1,000 or more have a 5% fee. Exchange rates and processing times are not listed here. Never state them; say a team member can confirm them.
 `;
 
 export const TRANSACTION_SYSTEM = `You are the Coinspace Assistant in the deposit and withdrawal chat. You ONLY handle forex deposits and withdrawals on Coinspace.
