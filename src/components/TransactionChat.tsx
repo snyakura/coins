@@ -413,6 +413,12 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     ctx.current = { ...snap.ctx };
     msgsRef.current = msgsRef.current.slice(0, snap.len);
     setMessages((m) => m.slice(0, snap.len));
+    if (snap.stage === "menu") {
+      // back at the choice between deposit and withdraw: say so, so the buttons have a question to answer
+      const ask = bot("No problem. Would you like to deposit or withdraw?");
+      msgsRef.current = [...msgsRef.current, ask];
+      setMessages((m) => [...m, ask]);
+    }
     setStage(snap.stage);
     setStep(snap.step);
     setFlow(snap.ctx.flow);
@@ -558,8 +564,16 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     startMode(mode as ChatMode);
   };
 
+  // When the chat opens straight into Deposit or Withdraw, remember the menu too, so "Back" can return to it and the client can switch.
+  const seedMenuBack = () => {
+    if (history.current.length) return;
+    history.current.push({ stage: "menu", step: 0, ctx: emptyCtx(), len: msgsRef.current.length });
+    setBackable(true);
+  };
+
   const begin = (next: Flow, record = true) => {
     if (record) checkpoint();
+    else seedMenuBack();
     push(me(`I want to ${next}`));
     startFlow(next);
   };
