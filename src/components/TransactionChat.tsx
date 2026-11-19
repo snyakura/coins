@@ -455,6 +455,10 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const isDerivDeposit = !kind && c.flow === "deposit" && c.asset === "DERIV";
     if (isDerivDeposit && !c.derivId) return; // never put a Deriv deposit in front of staff without its deposit id
     const derivDepositId = isDerivDeposit ? c.derivId : "";
+    // A Deriv withdrawal case is a record for staff: Deriv already accepted it, staff only need to know and pay the client out.
+    const isDerivWithdrawal = !kind && c.flow === "withdraw" && c.asset === "DERIV";
+    if (isDerivWithdrawal && !c.derivId) return;
+    const derivWithdrawalId = isDerivWithdrawal ? c.derivId : "";
     const first = !caseId.current;
     if (first) {
       caseId.current = crypto.randomUUID();
@@ -465,11 +469,13 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
     const mismatch = !!r && r.amount !== null && Math.abs(r.amount - c.amount) >= 0.01;
     const flag = kind === "statement" ? "Statement requested"
       : kind === "support" ? "Live chat"
+      : derivWithdrawalId ? "Deriv withdrawal"
       : early && !r ? "Awaiting proof"
       : mismatch ? "Amount mismatch"
       : c.amount > LARGE_PAYOUT ? "Over auto limit" : null;
     const detail = flag === "Statement requested" ? `Send statement to WhatsApp ${c.payoutNumber}`
       : flag === "Live chat" ? "Client is waiting for a reply"
+      : flag === "Deriv withdrawal" ? `Deriv accepted this withdrawal. Pay ${money(c.netAmount)} to ${c.payoutName} - ${c.payoutNumber} (${c.gateway}).`
       : flag === "Amount mismatch" ? `Proof shows $${r?.amount} but client requested $${c.amount}`
       : flag === "Over auto limit" ? "Above auto-payout threshold — staff sign-off required"
       : flag === "Awaiting proof" ? "Client is still completing the transaction" : null;
@@ -484,7 +490,7 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         _phone: c.payoutNumber || "",
         _kind: kind ? "support" : c.flow === "withdraw" ? "withdrawal" : "deposit",
         _amount: kind ? 0 : c.amount,
-        _platform: kind === "statement" ? "Statement" : kind ? "Support" : derivDepositId ? `Deriv · ${c.gateway}` : c.gateway || c.asset || "Coinspace",
+        _platform: kind === "statement" ? "Statement" : kind ? "Support" : derivDepositId || derivWithdrawalId ? `Deriv · ${c.gateway}` : c.gateway || c.asset || "Coinspace",
         _reference: r?.reference || refCode.current,
         _flag: flag,
         _flag_tone: mismatch || kind === "support" ? "danger" : "warn",
@@ -503,6 +509,16 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
         from: "bot",
         text: `Deriv deposit ${c.derivRef} · ${money(c.netAmount)} to Deriv account ${c.detail}`,
         deriv_deposit_id: derivDepositId,
+        deriv_request_id: c.derivRef,
+        at: new Date().toISOString(),
+      });
+    }
+    if (derivWithdrawalId && caseId.current && !res?.error && derivMarked.current !== caseId.current) {
+      derivMarked.current = caseId.current;
+      appendChat(caseId.current, {
+        from: "bot",
+        text: `Deriv withdrawal ${c.derivRef} · ${money(c.amount)} · pay ${money(c.netAmount)} to ${c.payoutName} - ${c.payoutNumber} (${c.gateway})`,
+        deriv_withdrawal_id: derivWithdrawalId,
         deriv_request_id: c.derivRef,
         at: new Date().toISOString(),
       });
@@ -1380,6 +1396,10 @@ export function TransactionChat({ mode, onClose }: { mode: ChatMode | null; onCl
       setStage("ended");
       setStep(5);
     };
+    // Deriv accepted it: let staff know, for their records and for the manual payout. A failure here must never bother the client.
+    if (["COMPLETED", "PROCESSING", "VERIFIED"].includes(w.status)) {
+      void saveCaseToSupabase().catch((e) => console.error("case sync:", e));
+    }
     if (w.status === "COMPLETED") {
       startWatch("withdrawal", w);
       respond(
